@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-16T11:20:47.605Z",
+  "exportedAt": "2026-10-16T11:20:57.468Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -1967,6 +1967,28 @@
         "message": "feat(samples): map this repository as a self-describing sample graph",
         "phase": "Phase 6 · Self-mapping",
         "narrative": "The tool maps its own repository: authored components, import-derived edges, and scenarios whose diffs are exact edits to real files.",
+        "addedNodeIds": [],
+        "modifiedNodeIds": []
+      },
+      {
+        "hash": "780c5fe",
+        "author": "imhussain001",
+        "date": "2026-10-16",
+        "message": "fix(impact): flag only scenario-edited files as broken",
+        "phase": "Phase 7 · Dogfooding pays off",
+        "narrative": "Mapping its own code exposed that the local engine flagged every direct dependent as broken. With an authored scenario, only files that need an edit are now 'broken'; the rest are review-only.",
+        "addedNodeIds": [],
+        "modifiedNodeIds": [
+          "impact-engine"
+        ]
+      },
+      {
+        "hash": "a8f87e9",
+        "author": "imhussain001",
+        "date": "2026-10-16",
+        "message": "docs: add README and architecture, API, engine and format docs",
+        "phase": "Phase 8 · Documentation",
+        "narrative": "README plus architecture, API, engine, format and development guides — no component code changes.",
         "addedNodeIds": [],
         "modifiedNodeIds": []
       }
