@@ -8,6 +8,7 @@ import { ArchitectureCanvas, type CenterRequest } from "@/components/Architectur
 import type { NodeActions } from "@/components/CustomNode";
 import { ImportDialog } from "@/components/ImportDialog";
 import { InspectorPanel } from "@/components/InspectorPanel";
+import { FOCUS_SEARCH_EVENT } from "@/components/SearchBox";
 import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
 import { fetchEngine, requestImpact, requestRepoFromFiles, requestRepoFromGithub, requestScaffold, requestStory } from "@/lib/apiClient";
@@ -84,6 +85,30 @@ export default function Page() {
     },
     [dispatch],
   );
+
+  /* ---------- Keyboard shortcuts ---------- */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTyping = Boolean(target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable));
+      const focusSearch = () => window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT));
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        focusSearch();
+        return;
+      }
+      if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === "/") {
+        event.preventDefault();
+        focusSearch();
+      } else if (event.key.toLowerCase() === "f") {
+        dispatch({ type: "toggleFocus" });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dispatch]);
 
   /* ---------- Handlers ---------- */
   const loadGraph = useCallback((next: ArchitectureGraph) => dispatch({ type: "loadGraph", graph: next }), [dispatch]);
@@ -271,6 +296,11 @@ export default function Page() {
               graphKey={graph.id}
               kindLabels={graph.kindLabels}
               centerRequest={centerRequest}
+              searchNodes={graph.nodes}
+              onSearchSelect={selectAndCenter}
+              focusEnabled={state.focusEnabled}
+              hasSelection={state.selectedNodeId !== null}
+              onToggleFocus={() => dispatch({ type: "toggleFocus" })}
               nodes={nodes}
               edges={edges}
               actions={nodeActions}

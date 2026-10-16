@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo } from "react";
 import { CustomNode, NodeActionsContext, type NodeActions } from "@/components/CustomNode";
+import { SearchBox } from "@/components/SearchBox";
 import type { ArchitectureGraph, ArchNode, RenderEdge, RenderNode } from "@/lib/types";
 import { HEALTH_META, KIND_META, STATUS_META } from "@/lib/ui";
 
@@ -48,6 +49,12 @@ type Props = {
   graphKey: string;
   kindLabels?: ArchitectureGraph["kindLabels"];
   centerRequest: CenterRequest | null;
+  /** Source components the search box looks through. */
+  searchNodes: ArchNode[];
+  onSearchSelect: (nodeId: string) => void;
+  focusEnabled: boolean;
+  hasSelection: boolean;
+  onToggleFocus: () => void;
   nodes: RenderNode[];
   edges: RenderEdge[];
   actions: NodeActions;
@@ -57,7 +64,7 @@ type Props = {
   onRemoveDraftEdge: (edgeId: string) => void;
 };
 
-export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, nodes, edges, actions, onNodesChange, onSelectNode, onConnect, onRemoveDraftEdge }: Props) {
+export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, searchNodes, onSearchSelect, focusEnabled, hasSelection, onToggleFocus, nodes, edges, actions, onNodesChange, onSelectNode, onConnect, onRemoveDraftEdge }: Props) {
   const handleEdgesChange = useCallback(
     (changes: EdgeChange<RenderEdge>[]) => {
       for (const change of changes) if (change.type === "remove") onRemoveDraftEdge(change.id);
@@ -114,7 +121,10 @@ export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, nodes,
         />
         <CenterController request={centerRequest} />
         <Panel position="top-left">
-          <div data-tour="legend" className="flex max-w-[min(100%,38rem)] flex-col gap-1.5">
+          <div className="flex max-w-[min(100%,38rem)] flex-col gap-1.5">
+            <SearchBox nodes={searchNodes} onSelect={onSearchSelect} focusEnabled={focusEnabled} hasSelection={hasSelection} onToggleFocus={onToggleFocus} />
+          </div>
+          <div data-tour="legend" className="mt-1.5 flex max-w-[min(100%,38rem)] flex-col gap-1.5">
             <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-1.5 text-[11px] text-zinc-400 backdrop-blur" title="Colour = what the component is for">
               {legend}
             </div>
