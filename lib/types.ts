@@ -9,7 +9,18 @@ export type NodeKind = "frontend" | "api" | "logic" | "data";
  */
 export type NodeStatus = "normal" | "modified" | "added" | "impacted" | "broken" | "proposed";
 
-export type EngineKind = "claude" | "local";
+export type EngineKind = "ai" | "local";
+
+/** What `/api/health` reports: which engine analysis routes try first. */
+export type EngineInfo = {
+  engine: EngineKind;
+  /** e.g. "llama3.1 · Ollama"; null for the local engine. */
+  label: string | null;
+  provider: string | null;
+  model: string | null;
+  /** Set when an AI provider was requested but its configuration is incomplete. */
+  error?: string;
+};
 
 export type CodeParam = {
   name: string;
@@ -109,6 +120,8 @@ export type ImpactAnalysisResult = {
   impacts: NodeImpact[];
   diffs: DiffItem[];
   engine: EngineKind;
+  /** Which model produced an AI result, e.g. "llama3.1 · Ollama". */
+  engineLabel?: string;
   /** Name of the authored scenario the local engine matched, if any. */
   scenarioId?: string;
 };
@@ -150,6 +163,7 @@ export type ScaffoldResult = {
   diffs: DiffItem[];
   summary: string;
   engine: EngineKind;
+  engineLabel?: string;
 };
 
 export type SourceFile = { path: string; content: string };
@@ -158,6 +172,7 @@ export type StoryNarrative = {
   overview: string;
   phases: Array<{ hash: string; phase: string; narrative: string }>;
   engine: EngineKind;
+  engineLabel?: string;
 };
 
 export type { XYPosition };

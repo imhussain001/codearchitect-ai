@@ -3,7 +3,7 @@
 import { buildHeuristicGraph, selectGraphFiles } from "@/lib/engines/heuristicGraph";
 import { analyzeImpactLocally } from "@/lib/engines/localImpact";
 import { scaffoldLocally } from "@/lib/engines/localScaffold";
-import type { ArchitectureGraph, EngineKind, ImpactAnalysisResult, ScaffoldResult, SourceFile, StoryNarrative } from "@/lib/types";
+import type { ArchitectureGraph, EngineInfo, ImpactAnalysisResult, ScaffoldResult, SourceFile, StoryNarrative } from "@/lib/types";
 
 export type Outcome<T> = { data: T; warning?: string };
 
@@ -67,11 +67,13 @@ export function requestRepoFromGithub(url: string): Promise<Outcome<Architecture
   return postJson("/api/analyze-repo", { kind: "github", url });
 }
 
-export async function fetchEngine(): Promise<{ engine: EngineKind; model: string | null }> {
+const LOCAL_ENGINE: EngineInfo = { engine: "local", label: null, provider: null, model: null };
+
+export async function fetchEngine(): Promise<EngineInfo> {
   try {
     const response = await fetch("/api/health");
-    return (await response.json()) as { engine: EngineKind; model: string | null };
+    return (await response.json()) as EngineInfo;
   } catch {
-    return { engine: "local", model: null };
+    return LOCAL_ENGINE;
   }
 }

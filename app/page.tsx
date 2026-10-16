@@ -15,7 +15,7 @@ import { commitsFromGitLog } from "@/lib/engines/story";
 import { kebabCase } from "@/lib/engines/localScaffold";
 import { findSample, SAMPLE_PROMPTS, SAMPLE_REPOSITORIES } from "@/lib/mockData";
 import { exportCodebase, readUpload } from "@/lib/portability";
-import type { ArchitectureGraph, ArchNode, EngineKind, NodeKind } from "@/lib/types";
+import type { ArchitectureGraph, ArchNode, EngineInfo, NodeKind } from "@/lib/types";
 import { buildRenderGraph } from "@/lib/viewModel";
 
 const STORY_STEP_MS = 2600;
@@ -32,7 +32,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 export default function Page() {
   const [state, dispatch] = useWorkspace();
   const { graph } = state;
-  const [engine, setEngine] = useState<{ engine: EngineKind; model: string | null } | null>(null);
+  const [engine, setEngine] = useState<EngineInfo | null>(null);
   const [importedGraph, setImportedGraph] = useState<ArchitectureGraph | null>(null);
   const [importState, setImportState] = useState<{ open: boolean; busy: boolean; error: string | null }>({ open: false, busy: false, error: null });
   const [isExporting, setIsExporting] = useState(false);
@@ -46,8 +46,11 @@ export default function Page() {
   const notify = useCallback((notice: Notice | null) => dispatch({ type: "notify", notice }), [dispatch]);
 
   useEffect(() => {
-    void fetchEngine().then(setEngine);
-  }, []);
+    void fetchEngine().then((info) => {
+      setEngine(info);
+      if (info.error) notify({ tone: "warning", message: `AI provider misconfigured — using the local engine. ${info.error}` });
+    });
+  }, [notify]);
 
   /* ---------- Story playback ---------- */
   const { isPlaying, index: storyIndex } = state.story;
@@ -131,7 +134,7 @@ export default function Page() {
       if (graphIdRef.current !== snapshot.id) return;
       dispatch({ type: "storyNarrated", narrative: data });
       if (warning) notify({ tone: "warning", message: warning });
-      else if (data.engine === "local") notify({ tone: "info", message: "Claude is not configured — showing commit-derived narratives." });
+      else if (data.engine === "local") notify({ tone: "info", message: "No AI model is configured — showing commit-derived narratives." });
     } catch (error) {
       dispatch({ type: "storyNarrationFailed" });
       notify({ tone: "error", message: errorMessage(error) });

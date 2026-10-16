@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { CLAUDE_MODEL, isClaudeEnabled } from "@/lib/server/claude";
+import { getAiStatus } from "@/lib/server/ai";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  const claude = isClaudeEnabled();
-  return NextResponse.json({ engine: claude ? "claude" : "local", model: claude ? CLAUDE_MODEL : null });
+  const status = getAiStatus();
+  if (status.state === "enabled") {
+    const { provider, model } = status.config;
+    return NextResponse.json({ engine: "ai", label: status.label, provider, model });
+  }
+  return NextResponse.json({ engine: "local", label: null, provider: null, model: null, error: status.state === "misconfigured" ? status.error : undefined });
 }

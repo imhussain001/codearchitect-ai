@@ -129,7 +129,7 @@ export function StoryPanel(props: Props) {
           className="flex items-center gap-1 rounded-md border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] font-medium text-violet-200 hover:bg-violet-500/20 disabled:opacity-50"
         >
           {narrationStatus === "running" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-          {narrative?.engine === "claude" ? "Re-narrate" : "Narrate with Claude"}
+          {narrative?.engine === "ai" ? "Re-narrate" : "Narrate with AI"}
         </button>
       </div>
       {narrative && <p className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-xs leading-relaxed text-violet-100/90">{narrative.overview}</p>}

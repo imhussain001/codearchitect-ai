@@ -108,8 +108,8 @@ export function BlastRadiusPanel(props: Props) {
           <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-                {result.engine === "claude" ? <Bot className="h-3.5 w-3.5 text-violet-400" /> : <Cpu className="h-3.5 w-3.5" />}
-                {result.engine === "claude" ? "Claude analysis" : result.scenarioId ? "Local engine · authored scenario" : "Local engine · graph heuristics"}
+                {result.engine === "ai" ? <Bot className="h-3.5 w-3.5 text-violet-400" /> : <Cpu className="h-3.5 w-3.5" />}
+                {result.engine === "ai" ? `AI analysis · ${result.engineLabel ?? "model"}` : result.scenarioId ? "Local engine · authored scenario" : "Local engine · graph heuristics"}
               </span>
               <button type="button" onClick={props.onClear} className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-200">
                 <X className="h-3 w-3" /> Clear

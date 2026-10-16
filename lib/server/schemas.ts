@@ -27,9 +27,9 @@ export const AnalyzeRepoRequestSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/* ---------- Claude structured-output schemas ---------- */
+/* ---------- Model structured-output schemas (provider-neutral) ---------- */
 
-export const ClaudeImpactSchema = z.object({
+export const AiImpactSchema = z.object({
   rootNodeId: z.string().describe("ID of the component where the change originates"),
   summary: z.string().describe("2-4 sentences: what changes, why dependents break, migration order"),
   riskScore: z.number().describe("0-100; breadth and depth of required changes"),
@@ -49,18 +49,18 @@ export const ClaudeImpactSchema = z.object({
   ),
 });
 
-export const ClaudeStorySchema = z.object({
+export const AiStorySchema = z.object({
   overview: z.string(),
   phases: z.array(z.object({ hash: z.string(), phase: z.string().describe("Short title, e.g. 'Phase 2 · Redis cache'"), narrative: z.string() })),
 });
 
-export const ClaudeScaffoldSchema = z.object({
+export const AiScaffoldSchema = z.object({
   summary: z.string(),
   files: z.array(z.object({ nodeId: z.string(), path: z.string(), content: z.string() })),
   edits: z.array(z.object({ nodeId: z.string(), after: z.string(), rationale: z.string() })),
 });
 
-export const ClaudeIngestSchema = z.object({
+export const AiIngestSchema = z.object({
   description: z.string(),
   components: z.array(
     z.object({
