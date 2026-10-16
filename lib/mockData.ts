@@ -1,9 +1,10 @@
 import type { ArchitectureGraph } from "@/lib/types";
 import { authMicroservice } from "@/lib/mock/authMicroservice";
 import { ecommerceApi } from "@/lib/mock/ecommerceApi";
+import { powerSystemsMatlab, POWER_SYSTEMS_PROMPTS } from "@/lib/mock/powerSystems";
 
 /** Built-in sample repositories shown in the repository selector. */
-export const SAMPLE_REPOSITORIES: readonly ArchitectureGraph[] = [ecommerceApi, authMicroservice];
+export const SAMPLE_REPOSITORIES: readonly ArchitectureGraph[] = [ecommerceApi, authMicroservice, powerSystemsMatlab];
 
 export const DEFAULT_REPOSITORY_ID = authMicroservice.id;
 
@@ -14,6 +15,7 @@ export const SAMPLE_PROMPTS: Record<string, string[]> = {
     "Change database schema for Users",
     "Rotate JWT signing from HS256 to RS256",
   ],
+  [powerSystemsMatlab.id]: POWER_SYSTEMS_PROMPTS,
   [ecommerceApi.id]: [
     "Store prices as integer cents instead of float dollars",
     "Replace Redis catalog cache with CDN edge caching",
@@ -25,4 +27,4 @@ export function findSample(id: string): ArchitectureGraph | undefined {
   return SAMPLE_REPOSITORIES.find((repo) => repo.id === id);
 }
 
-export { authMicroservice, ecommerceApi };
+export { authMicroservice, ecommerceApi, powerSystemsMatlab };
