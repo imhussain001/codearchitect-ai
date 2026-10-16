@@ -55,7 +55,7 @@ describe("explainImpact", () => {
     const mongo = analyzeImpactLocally(authMicroservice, "Refactor Users Database from SQL to MongoDB", null);
     const e = explainImpact(mongo, authMicroservice);
     expect(e.headline).toMatch(/review of 1 more component/);
-    expect(e.order.at(-1)).toMatch(/Skim User Dashboard/);
+    expect(e.order.at(-1)).toBe("5. Skim User Dashboard; it may need no edit.");
     expect(e.effortWhy).toMatch(/1 other component should be reviewed/);
   });
 });

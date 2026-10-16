@@ -124,7 +124,7 @@ export function explainImpact(result: ImpactAnalysisResult, graph: ArchitectureG
   const order = ordered
     .filter((i) => i.severity !== "impacted")
     .map((i, step) => (i.severity === "modified" ? `${step + 1}. Make the change in ${label(i.nodeId)}.` : `${step + 1}. Update ${label(i.nodeId)}: ${i.reason.replace(/\.$/, "")}.`));
-  if (review.length) order.push(`${order.length + 1}. Skim ${listNames(review.map((i) => label(i.nodeId)))}; they may need no edit.`);
+  if (review.length) order.push(`${order.length + 1}. Skim ${listNames(review.map((i) => label(i.nodeId)))}; ${review.length === 1 ? "it" : "they"} may need no edit.`);
 
   return { headline, effort, effortWhy, order };
 }
