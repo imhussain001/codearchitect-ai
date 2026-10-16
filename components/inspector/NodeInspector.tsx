@@ -2,7 +2,9 @@
 
 import clsx from "clsx";
 import { ArrowDownRight, ArrowUpRight, MousePointerClick, Zap } from "lucide-react";
+import { Glossary } from "@/components/Glossary";
 import { CodeBlock } from "@/components/inspector/CodeBlock";
+import { explainNode } from "@/lib/explain";
 import type { NodeHealth } from "@/lib/engines/health";
 import type { ArchitectureGraph, ArchNode } from "@/lib/types";
 import { HEALTH_META, KIND_META, kindLabelFor } from "@/lib/ui";
@@ -44,11 +46,13 @@ export function NodeInspector({ graph, node, health, onSelectNode, onSimulate }:
         <MousePointerClick className="h-8 w-8 text-zinc-600" />
         <p className="text-sm">Select a component on the canvas to inspect its code, exports and dependencies.</p>
         <p className="text-xs text-zinc-600">Tip: drag from a node's bottom handle to another node to draft a new dependency.</p>
+        <Glossary className="mt-3 w-full text-left" />
       </div>
     );
   }
 
   const { data } = node;
+  const plain = explainNode(graph, node.id);
   const label = (id: string) => graph.nodes.find((n) => n.id === id)?.data.label ?? id;
   const dependsOn = graph.edges.filter((e) => e.source === node.id);
   const usedBy = graph.edges.filter((e) => e.target === node.id);
@@ -82,6 +86,18 @@ export function NodeInspector({ graph, node, health, onSelectNode, onSimulate }:
           <Zap className="h-3.5 w-3.5" /> Simulate a change here
         </button>
       </header>
+
+      {plain && (
+        <section aria-label="In plain words" className="space-y-1.5 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">In plain words</h3>
+          <p className="text-sm font-medium text-zinc-100">{plain.headline}</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-zinc-300">
+            {plain.bullets.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <Section title="Source">
         <CodeBlock code={data.code} title={`${data.filePath} · ${data.language}`} />

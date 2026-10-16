@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { AlertTriangle, CircleCheck, Info } from "lucide-react";
+import { Glossary } from "@/components/Glossary";
 import { riskiestNodes, type HealthIssue, type HealthReport, type HealthSeverity } from "@/lib/engines/health";
 import type { ArchitectureGraph } from "@/lib/types";
 import { HEALTH_META } from "@/lib/ui";
@@ -157,6 +158,8 @@ export function HealthPanel({ graph, report, selectedNodeId, onSelectNode }: Pro
           <p>These are heuristics for finding where to look first, not a verdict.</p>
         </div>
       </details>
+
+      <Glossary />
     </div>
   );
 }
