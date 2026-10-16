@@ -137,17 +137,23 @@ export function analyzeImpactLocally(
   const root = nodeById(graph.nodes, rootNodeId);
   if (!root) throw new ImpactRootNotFoundError(trimmed);
 
+  // With an authored scenario we know which files need edits: only those are "broken";
+  // other graph dependents are review-only. Without one, fall back to depth-based severity.
+  const authoredEdits = new Map(scenario?.diffs.map((d) => [d.nodeId, d.rationale]) ?? []);
   const depths = collectDependents(rootNodeId, graph.edges);
-  const impacts: NodeImpact[] = [...depths.entries()].map(([nodeId, depth]) => ({
-    nodeId,
-    depth,
-    severity: severityForDepth(depth),
-    reason: reasonForDepth(depth, root.data.label),
-  }));
+  const impacts: NodeImpact[] = [...depths.entries()].map(([nodeId, depth]) => {
+    if (!scenario || depth === 0) {
+      return { nodeId, depth, severity: severityForDepth(depth), reason: reasonForDepth(depth, root.data.label) };
+    }
+    const rationale = authoredEdits.get(nodeId);
+    return rationale
+      ? { nodeId, depth, severity: "broken", reason: rationale }
+      : { nodeId, depth, severity: "impacted", reason: `Depends on ${root.data.label} (${depth} hop${depth > 1 ? "s" : ""}) but needs no edit for this change; review only.` };
+  });
 
   for (const extra of scenario?.extraImpacts ?? []) {
     if (depths.has(extra.nodeId) || !nodeById(graph.nodes, extra.nodeId)) continue;
-    impacts.push({ nodeId: extra.nodeId, depth: 1, severity: "impacted", reason: extra.reason });
+    impacts.push({ nodeId: extra.nodeId, depth: 1, severity: authoredEdits.has(extra.nodeId) ? "broken" : "impacted", reason: extra.reason });
   }
   impacts.sort((a, b) => a.depth - b.depth);
 

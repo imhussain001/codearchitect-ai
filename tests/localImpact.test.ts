@@ -19,19 +19,27 @@ describe("collectDependents", () => {
 });
 
 describe("analyzeImpactLocally", () => {
-  it("matches the authored UUID scenario and marks the expected nodes", () => {
+  it("matches the authored UUID scenario; every file needing an edit is broken", () => {
     const result = analyzeImpactLocally(authMicroservice, "Change `userId` from integer to UUID v4", null);
     expect(result.scenarioId).toBe("auth-userid-uuid");
     expect(result.rootNodeId).toBe("users-db");
     const severity = Object.fromEntries(result.impacts.map((i) => [i.nodeId, i.severity]));
-    expect(severity).toMatchObject({
+    expect(severity).toEqual({
       "users-db": "modified",
       "auth-controller": "broken",
-      "session-api": "impacted",
-      dashboard: "impacted",
-      "jwt-service": "impacted",
+      "session-api": "broken",
+      dashboard: "broken",
+      "jwt-service": "broken",
     });
     expect(result.diffs.every((d) => d.before !== d.after)).toBe(true);
+  });
+
+  it("marks scenario dependents without an authored edit as review-only", () => {
+    // Mongo scenario authors no dashboard edit: the dashboard only needs review.
+    const result = analyzeImpactLocally(authMicroservice, "Refactor Users Database from SQL to MongoDB", null);
+    const dashboard = result.impacts.find((i) => i.nodeId === "dashboard")!;
+    expect(dashboard.severity).toBe("impacted");
+    expect(dashboard.reason).toMatch(/review only/);
   });
 
   it("maps a free-form schema prompt to the users table and flags Auth Controller and Dashboard", () => {
