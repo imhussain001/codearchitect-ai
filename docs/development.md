@@ -52,6 +52,8 @@ npm test             # unit tests
 npm run typecheck
 npm run build        # production build; also type-checks
 npm run graph:self   # regenerate the self-graph (after code or history changes)
+npm run models       # list model IDs your configured providers serve
+npm run test:live    # score real models (opt-in; calls provider APIs)
 ```
 
 ## Testing
@@ -65,6 +67,25 @@ Conventions:
 - Every bug fix gets a regression test (see `localImpact.test.ts` → *review-only dependents*).
 
 There are no automated UI or E2E tests yet; Playwright would be the natural next step.
+
+### Live model tests
+
+`tests/live/providers.live.test.ts` runs all four AI features against real models and checks the answers against the graph, not just that JSON came back:
+
+| Case | Passes when |
+|---|---|
+| impact · UUID migration | the root is `users-db`, `auth-controller` is broken, and code edits are proposed |
+| impact · integer cents | the root is `orders-db` and the payment adapter's ×100 coupling is found |
+| story | one phase per commit, with the real hashes |
+| scaffold | one new file, plus whether the dashboard was wired |
+| ingest | a real slice of this repo maps to ≥ 4 components with edges |
+
+```bash
+npm run models                                              # pick real model IDs
+LIVE_TARGETS="gemini:<model>,groq:<model>" npm run test:live
+```
+
+Keys come from the environment or `.env.local`. Calls run one at a time with a pause between them (`LIVE_PAUSE_MS`, default 8000) so free-tier rate limits aren't what gets measured. A scorecard is written to `tests/live/.results/scorecard.md` (gitignored). The suite is skipped entirely when `LIVE_TARGETS` is empty, and it never runs as part of `npm test`.
 
 ## Common tasks
 

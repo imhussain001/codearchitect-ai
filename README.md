@@ -45,6 +45,8 @@ Open http://localhost:3000. No configuration is needed.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests (Vitest) |
 | `npm run graph:self` | Regenerate `public/samples/codearchitect-self.graph.json` from the current code and git history |
+| `npm run models` | List the model IDs each configured provider actually serves (helps pick `AI_MODEL`) |
+| `npm run test:live` | Score real models on every AI feature (opt-in, makes paid/free-tier API calls; see the development guide) |
 
 ## Configuration
 

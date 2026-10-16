@@ -9,7 +9,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "graph:self": "node scripts/build-self-graph.mjs . public/samples/codearchitect-self.graph.json"
+    "graph:self": "node scripts/build-self-graph.mjs . public/samples/codearchitect-self.graph.json",
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "models": "node scripts/list-models.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
