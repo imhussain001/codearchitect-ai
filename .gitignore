@@ -8,3 +8,6 @@ next-env.d.ts
 
 # Local tooling
 .claude/
+
+# Live provider test output
+tests/live/.results/
