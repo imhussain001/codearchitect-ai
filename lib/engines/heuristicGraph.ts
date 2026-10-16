@@ -1,7 +1,8 @@
-import { layoutByKind } from "@/lib/graph";
+import { layoutByKind, SCRIPT_LAYER_ORDER } from "@/lib/graph";
+import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
 import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, SourceFile } from "@/lib/types";
 
-const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|cs|php|vue|svelte)$/i;
+const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|cs|php|vue|svelte|m)$/i;
 const IGNORED_PATHS =
   /(^|\/)(node_modules|dist|build|out|\.next|\.git|vendor|venv|\.venv|__pycache__|coverage|target)(\/|$)|\.d\.ts$|(\.|_)(test|spec|stories)\.|(^|\/)(__tests__|tests?)\//i;
 const CONFIG_FILES = /(^|\/)[^/]*(config|rc)\.(c|m)?(js|ts)$/i;
@@ -40,6 +41,7 @@ export function extractImports(file: SourceFile): string[] {
 }
 
 export function extractExports(file: SourceFile): string[] {
+  if (file.path.endsWith(".m")) return matlabFunctions(file.content);
   if (file.path.endsWith(".py")) {
     return [...file.content.matchAll(PY_EXPORT)].map((m) => m[1]!).filter((n) => !n.startsWith("_"));
   }
@@ -60,7 +62,7 @@ function extractParams(file: SourceFile): CodeParam[] {
 }
 
 function stripExtension(path: string): string {
-  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|vue|svelte)$/i, "").replace(/\/index$/, "");
+  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|vue|svelte|m)$/i, "").replace(/\/index$/, "");
 }
 
 function joinPath(base: string, relative: string): string {
@@ -97,6 +99,7 @@ function labelFor(path: string): string {
 }
 
 function languageFor(path: string): string {
+  if (/\.m$/i.test(path)) return "matlab";
   return path.split(".").pop()?.toLowerCase() ?? "text";
 }
 
@@ -149,6 +152,7 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[]):
       imports: extractImports(file),
       params: extractParams(file),
       keywords: slugify(file.path).split("-").filter((s) => s.length >= 3),
+      lineCount: file.content.split("\n").length,
     },
   }));
 
@@ -167,14 +171,26 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[]):
     }
   }
 
+  // MATLAB/Python scripts: add function calls, data files read/written, and layer names.
+  const layer = analyzeScriptFiles(selected, idForPath);
+  const allNodes = [
+    ...nodes.map((n) => {
+      const patch = layer.patches.get(n.data.filePath);
+      return patch ? { ...n, data: { ...n.data, ...patch } } : n;
+    }),
+    ...layer.dataNodes,
+  ];
+  const allEdges = [...edges, ...layer.edges.filter((e) => !seen.has(e.id))];
+
   return {
     id: `import-${slugify(name)}-${Date.now().toString(36)}`,
     name,
-    description: `${nodes.length} components and ${edges.length} internal imports mapped heuristically.`,
-    nodes: layoutByKind(nodes),
-    edges,
+    description: `${allNodes.length} components and ${allEdges.length} dependencies mapped heuristically.`,
+    nodes: layer.kindLabels ? layoutByKind(allNodes, SCRIPT_LAYER_ORDER) : layoutByKind(allNodes),
+    edges: allEdges,
     commits: [],
     scenarios: [],
-    warnings,
+    kindLabels: layer.kindLabels,
+    warnings: [...warnings, ...layer.warnings],
   };
 }

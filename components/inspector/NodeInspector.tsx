@@ -2,9 +2,12 @@
 
 import clsx from "clsx";
 import { ArrowDownRight, ArrowUpRight, MousePointerClick, Zap } from "lucide-react";
+import { Glossary } from "@/components/Glossary";
 import { CodeBlock } from "@/components/inspector/CodeBlock";
+import { explainNode } from "@/lib/explain";
+import type { NodeHealth } from "@/lib/engines/health";
 import type { ArchitectureGraph, ArchNode } from "@/lib/types";
-import { KIND_META } from "@/lib/ui";
+import { HEALTH_META, KIND_META, kindLabelFor } from "@/lib/ui";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -31,22 +34,25 @@ function Chips({ items, empty }: { items: string[]; empty: string }) {
 type Props = {
   graph: ArchitectureGraph;
   node: ArchNode | undefined;
+  health?: NodeHealth;
   onSelectNode: (id: string) => void;
   onSimulate: (id: string) => void;
 };
 
-export function NodeInspector({ graph, node, onSelectNode, onSimulate }: Props) {
+export function NodeInspector({ graph, node, health, onSelectNode, onSimulate }: Props) {
   if (!node) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-zinc-500">
         <MousePointerClick className="h-8 w-8 text-zinc-600" />
         <p className="text-sm">Select a component on the canvas to inspect its code, exports and dependencies.</p>
         <p className="text-xs text-zinc-600">Tip: drag from a node's bottom handle to another node to draft a new dependency.</p>
+        <Glossary className="mt-3 w-full text-left" />
       </div>
     );
   }
 
   const { data } = node;
+  const plain = explainNode(graph, node.id);
   const label = (id: string) => graph.nodes.find((n) => n.id === id)?.data.label ?? id;
   const dependsOn = graph.edges.filter((e) => e.source === node.id);
   const usedBy = graph.edges.filter((e) => e.target === node.id);
@@ -60,10 +66,18 @@ export function NodeInspector({ graph, node, onSelectNode, onSimulate }: Props) 
             <p className="truncate font-mono text-[11px] text-zinc-500">{data.filePath}</p>
           </div>
           <span className={clsx("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset", KIND_META[data.kind].chip)}>
-            {KIND_META[data.kind].label}
+            {kindLabelFor(graph, data.kind)}
           </span>
         </div>
         <p className="text-sm leading-relaxed text-zinc-400">{data.description}</p>
+        {health && (
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
+            <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset", HEALTH_META[health.level].chip)} title="How costly and fragile this is to change (0-100). See the Health tab.">
+              Change-risk {health.score}
+            </span>
+            {health.reasons.length > 0 ? health.reasons.join(" · ") : "Few connections, low risk."}
+          </p>
+        )}
         <button
           type="button"
           onClick={() => onSimulate(node.id)}
@@ -72,6 +86,18 @@ export function NodeInspector({ graph, node, onSelectNode, onSimulate }: Props) 
           <Zap className="h-3.5 w-3.5" /> Simulate a change here
         </button>
       </header>
+
+      {plain && (
+        <section aria-label="In plain words" className="space-y-1.5 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">In plain words</h3>
+          <p className="text-sm font-medium text-zinc-100">{plain.headline}</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-zinc-300">
+            {plain.bullets.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <Section title="Source">
         <CodeBlock code={data.code} title={`${data.filePath} · ${data.language}`} />

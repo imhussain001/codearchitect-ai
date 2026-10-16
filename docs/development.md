@@ -104,6 +104,18 @@ Add an entry to the graph's `scenarios` (see [graph-format.md](graph-format.md#i
 - Use `extraImpacts` for couplings that the import graph cannot see.
 - Add a test asserting the severities.
 
+### Add a tour step
+
+Add an entry to `TOUR_STEPS` in `lib/tour.ts` and tag the element to spotlight with `data-tour="<target>"`. `tests/tour.test.ts` fails if a step targets an element that no longer exists. Set `tab` when the target lives in a particular drawer tab.
+
+### Add an architecture-health rule
+
+Add the check inside `analyzeHealth` in `lib/engines/health.ts`, push a `HealthIssue` with a plain-language `detail`, include it in the `counts` and the overall penalty, and extend `tests/health.test.ts`. Keep weights as named constants.
+
+### Add a script language
+
+Extend `scriptLangOf` and the lexer in `lib/engines/scripts.ts` (comment and string rules), then its write-call pattern and, if the language has a callable-by-file-name convention like MATLAB, the call detection. Add the extension to `SOURCE_EXTENSIONS` in `heuristicGraph.ts`.
+
 ### Add an analysis route
 
 1. Put the algorithm in `lib/engines/` so it stays pure and testable.

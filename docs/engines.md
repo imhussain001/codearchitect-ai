@@ -19,6 +19,28 @@ An edge is highlighted when both its endpoints are impacted. This is a cheap app
 
 Places nodes in bands, top to bottom: `frontend → api → logic → data`. Each band holds at most 5 nodes per row (250 px column, 190 px row spacing), and rows are centred. It is deterministic, so re-importing the same repo gives the same picture.
 
+## Architecture health (`lib/engines/health.ts`)
+
+Tests: `tests/health.test.ts`. Pure; draft nodes and edges from the builder are ignored.
+
+| Finding | Rule | Severity |
+|---|---|---|
+| Circular dependency | A strongly connected component with more than one node, or a self-loop (Tarjan, O(V+E)) | high |
+| Crossed layer | An edge from a `frontend` node to a `data` node, or from `data` to `frontend`/`api` | medium |
+| Hub | At least 4 direct dependents and at least 25% of the other components | medium |
+| Large file | ≥ 400 lines (low), ≥ 800 lines (medium); uses `lineCount`, since `code` may be truncated | low / medium |
+| Unconnected | No edges at all in a graph of more than one component | low |
+
+**Change-risk per component** (0–100): 8 per direct dependent (cap 40) + 3 per dependency (cap 15) + 1 per 20 lines (cap 20) + 30 if in a cycle + 15 if it crosses layers. Bands: healthy < 35, watch 35–64, risky ≥ 65.
+
+**Overall** = 100 − (12 × cycles + 8 × crossed layers + 5 × hubs + 4 × large files + 2 × unconnected), floored at 0. Grades: A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, else F.
+
+The weights are named constants at the top of the file. They are heuristics for ranking where to look first, not calibrated probabilities.
+
+## Search ranking (`lib/search.ts`)
+
+Tests: `tests/search.test.ts`. The query is split into words and **every word must match** (AND). Each word scores by its best field: name word-prefix 80, name substring 60, path 40, exported symbol 35, keyword prefix 30, description 10. An exact full-name match adds 100 and a name prefix adds 40. CamelCase and path separators are split so "user dash" finds `UserDashboard`.
+
 ## Impact analysis
 
 `lib/engines/localImpact.ts` · tests: `tests/localImpact.test.ts`
@@ -106,6 +128,17 @@ Tests: `tests/heuristicGraph.test.ts`
 | Node data | Exports by regex. Params from the first function signature. Code truncated to 120 lines with a "… N more lines" marker |
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
+
+## Script data-flow mapper (`lib/engines/scripts.ts`)
+
+Tests: `tests/scripts.test.ts`. Maps MATLAB (`.m`) and Python (`.py`) analysis code. Runs inside the heuristic mapper whenever scripts are present.
+
+1. **Lexer.** One pass per file removes comments (`%`, `%{ … %}`, `...`, `#`), blanks string contents and collects string literals. MATLAB's `'` is a string only when not directly after an identifier, `)`, `]`, `}`, `.` or `'` (otherwise it is the transpose operator); `''` is an escaped quote. Python triple-quoted strings (docstrings) are skipped.
+2. **Data files.** Every literal with a data extension (`csv tsv mat xlsx xls txt dat json h5 parquet pkl npy npz xml …`) or an output extension (`png jpg pdf svg eps fig …`) is a reference. It is a **write** when its line has a write call (`writetable`, `save`, `exportgraphics`, `to_csv`, `savefig`, …) or an `fopen`/`open` in write mode; images default to writes unless a read call is on the line; otherwise it is a **read**. A file both read and written counts as written. This works for names kept in cell arrays or struct fields, as real scripts do. Names built at run time (`_base.csv`, `%s.csv`, `*.csv`) are flagged as patterns.
+3. **MATLAB calls.** A file's name is a callable. A call is a whole-word occurrence (not after `.`) of another file's name in comment-free, string-free code; a local function of the same name shadows it.
+4. **Layers.** A script with no callers that calls something or touches data is an **entry script**; a file using at least two plotting calls is **plots & outputs**; the rest is **analysis code**; referenced files are **data files**. When more than half of the files are scripts, the graph renames the layers (`kindLabels`) and lays them out entry → analysis → plots → data.
+5. **Data nodes.** Created from references only; contents are never read. At most 40 are shown; the rest are grouped into "+N more data files".
+6. **Node details.** Description from the file's header comment, exports from `function` definitions, parameters from the first signature, and the called functions and files read as imports.
 
 ## Scaffold templates (`lib/engines/localScaffold.ts`)
 

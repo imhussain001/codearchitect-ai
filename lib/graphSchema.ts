@@ -21,6 +21,7 @@ const NodeDataSchema = z.object({
   params: z.array(z.object({ name: shortText, type: shortText, description: shortText.optional() })).max(50),
   keywords: z.array(z.string().max(60)).max(50),
   isDraft: z.boolean().optional(),
+  lineCount: z.number().int().nonnegative().optional(),
 });
 
 const NodeSchema = z.object({
@@ -68,6 +69,7 @@ export const GraphSchema = z.object({
   edges: z.array(EdgeSchema).max(MAX_EDGES),
   commits: z.array(CommitSchema).max(500),
   scenarios: z.array(ScenarioSchema).max(50),
+  kindLabels: z.record(z.enum(["frontend", "api", "logic", "data"]), z.string().max(60)).optional(),
   warnings: z.array(z.string()).optional(),
 });
 

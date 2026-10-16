@@ -13,7 +13,7 @@ import type {
   StoryNarrative,
 } from "@/lib/types";
 
-export type InspectorTab = "inspector" | "blast" | "story" | "builder";
+export type InspectorTab = "inspector" | "blast" | "health" | "story" | "builder";
 export type AsyncStatus = "idle" | "running" | "error";
 export type Notice = { tone: "info" | "warning" | "error"; message: string };
 
@@ -25,6 +25,8 @@ export type WorkspaceState = {
   impact: { status: AsyncStatus; result: ImpactAnalysisResult | null; error?: string };
   story: { enabled: boolean; index: number; isPlaying: boolean; narrative: StoryNarrative | null; status: AsyncStatus };
   scaffold: { status: AsyncStatus; result: ScaffoldResult | null; error?: string };
+  /** Dim everything outside the selected component's direct neighbourhood. */
+  focusEnabled: boolean;
   notice: Notice | null;
 };
 
@@ -32,6 +34,7 @@ export type WorkspaceAction =
   | { type: "loadGraph"; graph: ArchitectureGraph }
   | { type: "nodesChanged"; changes: NodeChange<ArchNode>[] }
   | { type: "selectNode"; nodeId: string | null }
+  | { type: "toggleFocus" }
   | { type: "setTab"; tab: InspectorTab }
   | { type: "setImpactPrompt"; prompt: string }
   | { type: "impactStarted" }
@@ -65,6 +68,7 @@ function freshState(graph: ArchitectureGraph): WorkspaceState {
     impact: { status: "idle", result: null },
     story: { enabled: false, index: Math.max(0, graph.commits.length - 1), isPlaying: false, narrative: null, status: "idle" },
     scaffold: { status: "idle", result: null },
+    focusEnabled: false,
     notice: graph.warnings?.length ? { tone: "warning", message: graph.warnings.join(" ") } : null,
   };
 }
@@ -95,6 +99,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
 
     case "selectNode":
       return { ...state, selectedNodeId: action.nodeId };
+    case "toggleFocus":
+      return { ...state, focusEnabled: !state.focusEnabled };
     case "setTab":
       return { ...state, activeTab: action.tab };
     case "setImpactPrompt":

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Bot, ChevronDown, Cpu, Download, FolderGit2, History, Loader2, Network, Radar } from "lucide-react";
+import { Bot, ChevronDown, Cpu, Download, FolderGit2, HelpCircle, History, Loader2, Network, Radar } from "lucide-react";
 import type { ArchitectureGraph, EngineInfo } from "@/lib/types";
 
 export const CUSTOM_UPLOAD_OPTION = "__custom_upload__";
@@ -18,9 +18,10 @@ type Props = {
   onSimulate: () => void;
   onToggleStory: () => void;
   onExport: () => void;
+  onHelp: () => void;
 };
 
-function NavButton({ onClick, active, disabled, children, tone }: { onClick: () => void; active?: boolean; disabled?: boolean; children: React.ReactNode; tone: "red" | "violet" | "zinc" }) {
+function NavButton({ onClick, active, disabled, children, tone, tour, title }: { onClick: () => void; active?: boolean; disabled?: boolean; children: React.ReactNode; tone: "red" | "violet" | "zinc"; tour?: string; title?: string }) {
   const tones = {
     red: active ? "border-red-500/60 bg-red-500/15 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-red-500/50 hover:text-red-200",
     violet: active ? "border-violet-500/60 bg-violet-500/15 text-violet-200" : "border-zinc-700 text-zinc-300 hover:border-violet-500/50 hover:text-violet-200",
@@ -32,6 +33,8 @@ function NavButton({ onClick, active, disabled, children, tone }: { onClick: () 
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
+      data-tour={tour}
+      title={title}
       className={clsx("flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50", tones[tone])}
     >
       {children}
@@ -99,14 +102,18 @@ export function TopNav(props: Props) {
       </span>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        <NavButton tone="red" active={props.isImpactActive} onClick={props.onSimulate}>
+        <NavButton tone="red" tour="simulate" title="Describe a change and see what it would break" active={props.isImpactActive} onClick={props.onSimulate}>
           <Radar className="h-3.5 w-3.5" /> Simulate Blast Radius
         </NavButton>
-        <NavButton tone="violet" active={props.isStoryOn} onClick={props.onToggleStory}>
+        <NavButton tone="violet" tour="story" title="Replay how the architecture evolved, commit by commit" active={props.isStoryOn} onClick={props.onToggleStory}>
           <History className="h-3.5 w-3.5" /> Toggle Time-Machine Story
         </NavButton>
         <NavButton tone="zinc" onClick={props.onExport} disabled={props.isExporting}>
           {props.isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Export Code Base
+        </NavButton>
+        <NavButton tone="zinc" tour="help" title="Show the guided tour (?)" onClick={props.onHelp}>
+          <HelpCircle className="h-3.5 w-3.5" />
+          <span className="sr-only">Show the guided tour</span>
         </NavButton>
       </div>
     </header>

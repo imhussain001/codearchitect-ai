@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Copy, Database, Eye, Layers, Monitor, Network, Zap } from "lucide-react";
 import { createContext, memo, useContext, type ComponentType } from "react";
 import type { NodeKind, RenderNode } from "@/lib/types";
-import { KIND_META, STATUS_META } from "@/lib/ui";
+import { HEALTH_META, KIND_META, STATUS_META } from "@/lib/ui";
 
 export type NodeActions = {
   inspect: (nodeId: string) => void;
@@ -15,6 +15,15 @@ export type NodeActions = {
 
 /** Quick actions are injected via context so node data stays serializable. */
 export const NodeActionsContext = createContext<NodeActions | null>(null);
+
+const STATUS_HELP: Record<RenderNode["data"]["status"], string> = {
+  normal: "No change is being simulated for this component.",
+  modified: "This is where the change starts.",
+  added: "Introduced by the commit you are viewing.",
+  impacted: "Depends on the changed component; review it, it may need a smaller edit.",
+  broken: "Will fail or misbehave unless it is edited for this change.",
+  proposed: "A draft component from the Builder; it does not exist in the code yet.",
+};
 
 const KIND_ICON: Record<NodeKind, ComponentType<{ className?: string }>> = {
   frontend: Monitor,
@@ -45,14 +54,17 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<RenderNode>) {
   const kind = KIND_META[data.kind];
   const status = STATUS_META[data.status];
   const Icon = KIND_ICON[data.kind];
+  const heat = data.heat ? HEALTH_META[data.heat.level] : null;
 
   return (
     <div
       className={clsx(
-        "group w-[220px] rounded-xl border-2 bg-zinc-900/80 shadow-lg shadow-black/40 backdrop-blur-md transition-[transform,border-color] duration-150 hover:-translate-y-0.5",
+        "group w-[220px] rounded-xl border-2 bg-zinc-900/80 shadow-lg shadow-black/40 backdrop-blur-md transition-[transform,border-color,opacity] duration-150 hover:-translate-y-0.5",
         kind.border,
         status.glow,
         data.status === "proposed" && "border-dashed",
+        heat && !selected && heat.ring,
+        data.dimmed && "opacity-25 saturate-50",
         selected && "ring-2 ring-white/70 ring-offset-2 ring-offset-zinc-950",
       )}
     >
@@ -73,12 +85,23 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<RenderNode>) {
       </div>
 
       <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-2">
-        <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset", kind.chip)}>{kind.label}</span>
-        <span className={clsx("flex items-center gap-1 text-[10px] font-medium", status.text)}>
-          <span className={clsx("h-1.5 w-1.5 rounded-full", status.dot, data.status !== "normal" && "animate-pulse")} />
-          {status.label}
-          {data.impactDepth !== undefined && data.impactDepth > 0 && <span className="text-zinc-500">· {data.impactDepth} hop</span>}
+        <span className={clsx("truncate rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset", kind.chip)} title={kind.label}>
+          {data.kindLabel}
         </span>
+        {heat && data.heat ? (
+          <span
+            className={clsx("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset", heat.chip)}
+            title={`Change-risk ${data.heat.score}/100 (${heat.label}). Higher means more things depend on it or it is structurally tangled.`}
+          >
+            Risk {data.heat.score}
+          </span>
+        ) : (
+          <span className={clsx("flex shrink-0 items-center gap-1 text-[10px] font-medium", status.text)} title={STATUS_HELP[data.status]}>
+            <span className={clsx("h-1.5 w-1.5 rounded-full", status.dot, data.status !== "normal" && "animate-pulse")} />
+            {status.label}
+            {data.impactDepth !== undefined && data.impactDepth > 0 && <span className="text-zinc-500">· {data.impactDepth} hop</span>}
+          </span>
+        )}
       </div>
 
       {actions && (

@@ -12,6 +12,7 @@ function initial(): WorkspaceState {
     impact: { status: "idle", result: null },
     story: { enabled: false, index: 3, isPlaying: false, narrative: null, status: "idle" },
     scaffold: { status: "idle", result: null },
+    focusEnabled: false,
     notice: null,
   };
 }

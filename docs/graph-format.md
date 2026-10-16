@@ -27,6 +27,7 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
   "edges": [ /* DependencyEdge */ ],
   "commits": [ /* CommitSnapshot, oldest first */ ],
   "scenarios": [ /* ImpactScenario */ ],
+  "kindLabels": { "data": "Data files" },   // optional: rename the four layers for this graph
   "warnings": ["optional notes shown on load"]
 }
 ```
@@ -49,7 +50,8 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
     "imports": ["pg", "bcrypt"],
     "params": [{ "name": "userId", "type": "number", "description": "optional" }],
     "keywords": ["database", "users", "schema"], // feed the prompt→node ranking
-    "isDraft": false                  // optional; true = drawn in the builder
+    "isDraft": false,                 // optional; true = drawn in the builder
+    "lineCount": 412                  // optional; real file size when `code` is truncated
   }
 }
 ```

@@ -32,7 +32,10 @@ export function impactPathEdgeIds(edges: readonly DependencyEdge[], impacted: Re
   return new Set(edges.filter((e) => impacted.has(e.source) && impacted.has(e.target)).map((e) => e.id));
 }
 
-const KIND_ROW: Record<NodeKind, number> = { frontend: 0, api: 1, logic: 2, data: 3 };
+/** Web apps read top-down as UI → API → logic → data. */
+export const WEB_LAYER_ORDER: readonly NodeKind[] = ["frontend", "api", "logic", "data"];
+/** Script projects read top-down as entry scripts → analysis code → plots → data files. */
+export const SCRIPT_LAYER_ORDER: readonly NodeKind[] = ["api", "logic", "frontend", "data"];
 const LAYOUT_COLUMN_SPACING_PX = 250;
 const LAYOUT_ROW_SPACING_PX = 190;
 const LAYOUT_MAX_PER_ROW = 5;
@@ -41,7 +44,7 @@ const LAYOUT_MAX_PER_ROW = 5;
  * Layered layout: one band per architectural layer (UI → API → logic → data),
  * wrapping wide layers onto extra rows. Deterministic, so re-imports are stable.
  */
-export function layoutByKind(nodes: readonly ArchNode[]): ArchNode[] {
+export function layoutByKind(nodes: readonly ArchNode[], order: readonly NodeKind[] = WEB_LAYER_ORDER): ArchNode[] {
   const byKind = new Map<NodeKind, ArchNode[]>();
   for (const node of nodes) {
     const list = byKind.get(node.data.kind) ?? [];
@@ -51,7 +54,7 @@ export function layoutByKind(nodes: readonly ArchNode[]): ArchNode[] {
 
   const placed: ArchNode[] = [];
   let rowCursor = 0;
-  for (const kind of Object.keys(KIND_ROW) as NodeKind[]) {
+  for (const kind of order) {
     const group = byKind.get(kind) ?? [];
     for (let start = 0; start < group.length; start += LAYOUT_MAX_PER_ROW) {
       const row = group.slice(start, start + LAYOUT_MAX_PER_ROW);

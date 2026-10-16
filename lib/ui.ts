@@ -1,4 +1,4 @@
-import type { ImpactSeverity, NodeKind, NodeStatus } from "@/lib/types";
+import type { ArchitectureGraph, HealthLevel, ImpactSeverity, NodeKind, NodeStatus } from "@/lib/types";
 
 export const KIND_META: Record<NodeKind, { label: string; border: string; text: string; chip: string; hex: string }> = {
   frontend: { label: "Frontend / UI", border: "border-sky-500/70", text: "text-sky-300", chip: "bg-sky-500/10 text-sky-300 ring-sky-500/30", hex: "#0ea5e9" },
@@ -22,4 +22,16 @@ export const SEVERITY_META: Record<ImpactSeverity, { label: string; chip: string
   impacted: { label: "Review", chip: "bg-amber-500/15 text-amber-300 ring-amber-500/40" },
 };
 
-export const EDGE_COLORS = { default: "#52525b", impact: "#ef4444", draft: "#d946ef" } as const;
+export const EDGE_COLORS = { default: "#52525b", impact: "#ef4444", draft: "#d946ef", cycle: "#f43f5e" } as const;
+
+/** Health-overlay styling: a coloured ring plus a "Risk N" chip. */
+export const HEALTH_META: Record<HealthLevel, { label: string; ring: string; chip: string; hex: string; text: string }> = {
+  healthy: { label: "Healthy", ring: "ring-2 ring-emerald-500/60", chip: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40", hex: "#10b981", text: "text-emerald-300" },
+  watch: { label: "Watch", ring: "ring-2 ring-amber-500/70", chip: "bg-amber-500/15 text-amber-300 ring-amber-500/40", hex: "#f59e0b", text: "text-amber-300" },
+  risky: { label: "Risky", ring: "ring-2 ring-red-500/80", chip: "bg-red-500/15 text-red-300 ring-red-500/40", hex: "#ef4444", text: "text-red-300" },
+};
+
+/** The display name of a layer in this graph. */
+export function kindLabelFor(graph: Pick<ArchitectureGraph, "kindLabels">, kind: NodeKind): string {
+  return graph.kindLabels?.[kind] ?? KIND_META[kind].label;
+}

@@ -2,7 +2,9 @@
 
 import clsx from "clsx";
 import { Bot, CheckCheck, Cpu, Loader2, Radar, X } from "lucide-react";
+import { Glossary } from "@/components/Glossary";
 import { DiffViewer } from "@/components/inspector/DiffViewer";
+import { explainImpact, type Effort } from "@/lib/explain";
 import type { AsyncStatus } from "@/hooks/useWorkspace";
 import type { ArchitectureGraph, ImpactAnalysisResult } from "@/lib/types";
 import { SEVERITY_META } from "@/lib/ui";
@@ -45,10 +47,17 @@ function RiskMeter({ score }: { score: number }) {
   );
 }
 
+const EFFORT_CHIP: Record<Effort, string> = {
+  Small: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40",
+  Medium: "bg-amber-500/15 text-amber-300 ring-amber-500/40",
+  Large: "bg-red-500/15 text-red-300 ring-red-500/40",
+};
+
 export function BlastRadiusPanel(props: Props) {
   const { graph, selectedNodeId, prompt, samplePrompts, status, error, result } = props;
   const isRunning = status === "running";
   const label = (id: string) => graph.nodes.find((n) => n.id === id)?.data.label ?? id;
+  const plain = result ? explainImpact(result, graph) : null;
 
   return (
     <div className="space-y-5">
@@ -103,8 +112,33 @@ export function BlastRadiusPanel(props: Props) {
 
       {status === "error" && error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>}
 
+      {!result && status !== "running" && (
+        <p className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs leading-relaxed text-zinc-400">
+          <b className="text-zinc-200">What this does:</b> describe a change in plain words and see which components would break, which only need a look, and the edits
+          required. Select a component first to tell it where the change starts, or just name it in your sentence.
+        </p>
+      )}
+
       {result && (
         <div className="space-y-4">
+          {plain && (
+            <section aria-label="In plain words" className="space-y-2 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-sky-300">In plain words</h3>
+                <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset", EFFORT_CHIP[plain.effort])} title={plain.effortWhy}>
+                  Effort: {plain.effort}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-zinc-100">{plain.headline}</p>
+              <p className="text-xs leading-relaxed text-zinc-400">{plain.effortWhy}</p>
+              <ol className="space-y-0.5 text-xs leading-relaxed text-zinc-300">
+                {plain.order.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </section>
+          )}
+
           <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
@@ -151,6 +185,8 @@ export function BlastRadiusPanel(props: Props) {
           </section>
         </div>
       )}
+
+      <Glossary />
     </div>
   );
 }
