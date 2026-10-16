@@ -23,14 +23,14 @@ flowchart TB
     Routes["app/api/*/route.ts"]
     Respond["lib/server/respond.ts<br/>validation + fallback"]
     Analyzers["lib/server/analyzers.ts<br/>prompts + output checks"]
-    ClaudeGW["lib/server/claude.ts<br/>Anthropic SDK"]
+    AIGW["lib/server/ai/*<br/>provider config + adapters<br/>(Anthropic · OpenAI-compatible)"]
     GH["lib/server/github.ts"]
   end
   Page --> Comp & Store & VM & Client & Port
   VM --> Core
   Client -- fetch --> Routes
   Client -. offline .-> Engines
-  Routes --> Respond --> Analyzers --> ClaudeGW
+  Routes --> Respond --> Analyzers --> AIGW
   Respond --> Engines
   Routes --> GH
   Engines --> Core
@@ -42,7 +42,7 @@ flowchart TB
 | `hooks/useWorkspace.ts` | The single source of UI state; pure reducer | Do I/O |
 | `lib/viewModel.ts` | Derive per-node and per-edge status, visibility and styling | Mutate state |
 | `lib/engines/`, `lib/graph.ts`, `lib/diff.ts` | Deterministic algorithms | Import React, Next or server-only modules |
-| `lib/server/` | Claude, GitHub and request validation (`import "server-only"`) | Run in the browser (enforced at build time) |
+| `lib/server/` | AI providers, GitHub and request validation (`import "server-only"`) | Run in the browser (enforced at build time) |
 | `app/api/` | Thin handlers: parse → choose engine → respond | Contain analysis logic |
 
 ## Domain model
@@ -95,19 +95,19 @@ sequenceDiagram
   participant UI as page.tsx
   participant C as apiClient
   participant R as /api/impact
-  participant A as analyzers (Claude)
+  participant A as analyzers (AI provider)
   participant L as localImpact
   UI->>C: requestImpact(graph, prompt)
   C->>R: POST
-  alt Claude enabled
-    R->>A: analyzeImpactWithClaude
+  alt AI provider configured
+    R->>A: analyzeImpactWithAi
     alt success
-      A-->>R: result (engine: claude)
+      A-->>R: result (engine: ai)
     else any error
       R->>L: analyzeImpactLocally
       L-->>R: result + warning
     end
-  else Claude disabled
+  else none configured (or misconfigured)
     R->>L: analyzeImpactLocally
   end
   R-->>C: { ok, data, warning? }
@@ -126,8 +126,8 @@ sequenceDiagram
 
 1. **Browser → API.** Every body is validated with bounded zod schemas (`lib/graphSchema.ts`, `lib/server/schemas.ts`): node, edge and code size limits, prompt ≤ 2,000 characters. See [api.md](api.md#limits).
 2. **API → GitHub.** Only `https://github.com/<owner>/<repo>[/tree/<ref>]` URLs are accepted, and the request host is fixed to `api.github.com`, so no user-controlled URL is ever fetched (SSRF-safe). Archives are capped at 50 MB, and ZIP entries with `..` are skipped.
-3. **Claude → API.** Structured outputs guarantee the response's shape but not that it agrees with the graph. The analyzers drop node IDs that don't exist, recompute hop depth with the local BFS, clamp the risk score, and take every diff's `before` from the graph, never from the model.
-4. **Secrets.** The API key is read only on the server by the SDK. Error messages are mapped to safe summaries (`describeClaudeError`) and never echo keys or raw payloads.
+3. **Model → API.** Every provider's reply is validated against the same Zod schema (with one repair retry), but a valid shape doesn't guarantee it agrees with the graph. The analyzers drop node IDs that don't exist, recompute hop depth with the local BFS, clamp the risk score, and take every diff's `before` from the graph, never from the model.
+4. **Secrets.** The API key is read only on the server by the SDK. Error messages are mapped to safe summaries (`describeAiError`) and never echo keys or raw payloads.
 
 ## Rendering
 
@@ -141,6 +141,7 @@ sequenceDiagram
 |---|---|
 | Global store (Zustand/Redux) | One page and one state tree; a reducer is enough and keeps the state transitions testable as pure functions. |
 | Storing status on nodes | Leaves stale status behind when switching modes (see above). |
-| Claude-only analysis | Requires a paid key just to try the app, and makes the whole UX depend on one network call. |
+| AI-only analysis | Requires a paid key (or a local model) just to try the app, and makes the whole UX depend on one network call. |
+| One adapter per provider SDK | Most providers speak the OpenAI Chat Completions protocol; one tolerant adapter plus Anthropic's native one covers them with far less code to maintain. |
 | Myers diff library | Snippets are small; a ~60-line LCS with a cell cap avoids a dependency. Revisit if very large files become common. |
 | D3 force layout | Layered layout by architectural layer reads better for dependency graphs and stays stable across re-imports. |

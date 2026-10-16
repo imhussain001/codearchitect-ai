@@ -9,7 +9,7 @@ type ApiSuccess<T> = { ok: true; data: T; warning?: string };
 type ApiFailure     = { ok: false; error: string };
 ```
 
-`warning` is set when Claude was enabled but failed and the local engine answered instead. It explains why, e.g. *"Claude rate limit reached; retry shortly. Showing the local engine's result instead."*
+`warning` is set when an AI provider was configured but failed (or is misconfigured) and the local engine answered instead. It explains why, e.g. *"Could not reach Ollama — is it running? Showing the local engine's result instead."*
 
 | Status | Meaning |
 |---|---|
@@ -26,8 +26,9 @@ Analysis routes set `maxDuration = 300` seconds.
 Reports which engine the analysis routes will try first.
 
 ```json
-{ "engine": "claude", "model": "claude-opus-5-5" }
-{ "engine": "local",  "model": null }
+{ "engine": "ai",    "label": "qwen2.5-coder:14b · Ollama", "provider": "ollama", "model": "qwen2.5-coder:14b" }
+{ "engine": "local", "label": null, "provider": null, "model": null }
+{ "engine": "local", "label": null, "provider": null, "model": null, "error": "Ollama needs a model name: set AI_MODEL …" }
 ```
 
 ---
@@ -61,12 +62,13 @@ Blast-radius analysis for a proposed change.
     reason: string;
   }>;
   diffs: Array<{ nodeId; filePath; before; after; rationale }>;
-  engine: "claude" | "local";
+  engine: "ai" | "local";
+  engineLabel?: string;         // which model answered, e.g. "gpt-x · OpenAI"
   scenarioId?: string;          // local engine: authored scenario that matched
 }
 ```
 
-**Claude path:** `effort: "high"`. The response is checked against the graph as described in [architecture.md § Trust boundaries](architecture.md#trust-boundaries).
+**AI path:** `effort: "high"`. The response is checked against the graph as described in [architecture.md § Trust boundaries](architecture.md#trust-boundaries).
 **Local path:** see [engines.md § Impact](engines.md#impact-analysis).
 
 **Errors:** a 422 with *"Could not map "…" to a component"* when no node matches and none is selected.
@@ -85,7 +87,7 @@ Narrates the graph's commit history.
 { overview: string; phases: Array<{ hash; phase; narrative }>; engine }
 ```
 
-The Claude path uses `effort: "medium"`, and returned phases are filtered to known hashes. The local path echoes each commit's own `phase` and `narrative`.
+The AI path uses `effort: "medium"`, and returned phases are filtered to known hashes. The local path echoes each commit's own `phase` and `narrative`.
 
 ---
 
@@ -102,11 +104,12 @@ Generates code for draft components (`data.isDraft`) and wiring for draft edges 
   files: Array<{ nodeId; path; content }>;       // one per draft node
   diffs: Array<{ nodeId; filePath; before; after; rationale }>; // edits to existing nodes
   summary: string;
-  engine: "claude" | "local";
+  engine: "ai" | "local";
+  engineLabel?: string;
 }
 ```
 
-Claude results are filtered so that `files` cover only draft nodes and `diffs` only existing nodes. Returns 422 if nothing is drafted.
+AI results are filtered so that `files` cover only draft nodes and `diffs` only existing nodes. Returns 422 if nothing is drafted.
 
 ---
 
@@ -127,7 +130,7 @@ For `github`, the server downloads `api.github.com/repos/{owner}/{repo}/zipball[
 
 | Engine | Granularity | Source budget |
 |---|---|---|
-| Claude (`effort: "medium"`) | 4–25 architectural components | Whole files up to 600,000 characters in total; files that don't fit are listed in `warnings` |
+| AI model (`effort: "medium"`) | 4–25 architectural components | Whole files up to the provider's `AI_MAX_INPUT_CHARS` budget (40k chars for local models, up to 600k for large-context hosted models); files that don't fit are listed in `warnings` |
 | Local heuristic | One node per file, top 60 by relevance | — |
 
 **Errors:** 400 for bad URLs, private or missing repos (*"not found or not public"*), GitHub rate limits, or oversized archives. 422 when no supported source files are found.
@@ -147,11 +150,20 @@ These are enforced by `lib/graphSchema.ts` and `lib/server/schemas.ts`.
 | Uploaded files | 5,000 files, 400,000 chars each |
 | ZIP archive | 50 MB (source files over 200 KB are skipped) |
 
-## Claude request shape
+## Model request shape
 
-Every Claude call goes through `generateStructured` in `lib/server/claude.ts`:
+Every model call goes through one interface, `StructuredGenerator.generate({ schema, schemaName, system, prompt, effort })` (`lib/server/ai/`). Provider selection is `resolveProviderConfig(env)` in `lib/server/ai/config.ts`.
 
-- `client.beta.messages.parse` with `betaZodOutputFormat(schema)` (structured outputs)
-- model `claude-opus-5-5`, `max_tokens: 16000`, `output_config.effort` set per route
-- `betas: ["server-side-fallback-2026-07-01"]` with `fallbacks: "default"`, so a policy decline is retried server-side on Anthropic's recommended fallback model
-- `stop_reason` is checked before reading content: `refusal` and `max_tokens` raise `ClaudeResponseError`, which the route turns into a local-engine fallback with a warning
+**Anthropic adapter** (`anthropic.ts`)
+- `client.beta.messages.parse` with `betaZodOutputFormat(schema)` (native structured outputs), `max_tokens: 16000`, `output_config.effort`
+- `fallbacks: "default"` with beta `server-side-fallback-2026-07-01`, so a policy decline is retried server-side
+- `stop_reason` `refusal` / `max_tokens` → `ModelResponseError`
+
+**OpenAI-compatible adapter** (`openaiCompatible.ts`), used for OpenAI, Gemini, Ollama, LM Studio, OpenRouter, Groq, DeepSeek and custom endpoints
+- `chat.completions.create`. The JSON Schema (from `z.toJSONSchema`) is always embedded in the system prompt.
+- `response_format` degrades per endpoint: `json_schema` → `json_object` → none, on 400/422. The accepted mode is remembered per process.
+- Replies are parsed tolerantly (code fences and surrounding prose are stripped) and validated with the same Zod schema. On failure the validation error is sent back once for a repair; a second failure raises `ModelResponseError`.
+- OpenAI itself gets `max_completion_tokens` + `reasoning_effort` (`xhigh`/`max` → `high`); other endpoints get `max_tokens`.
+- `finish_reason` `length` / `content_filter` and refusals → `ModelResponseError`.
+
+**Context budgets:** impact and scaffold prompts include every component's code. When that exceeds `AI_MAX_INPUT_CHARS`, each file is truncated evenly, and model-written edits to truncated files are discarded, since an "after" written from partial code would silently delete the unseen remainder.

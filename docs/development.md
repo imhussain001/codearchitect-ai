@@ -35,7 +35,8 @@ lib/
   viewModel.ts             render overlay
   apiClient.ts, portability.ts, ui.ts
   engines/                 localImpact, story, heuristicGraph, localScaffold, zip
-  server/                  claude, analyzers, schemas, respond, github  (server-only)
+  server/                  analyzers, schemas, respond, github  (server-only)
+  server/ai/               provider config, Anthropic + OpenAI-compatible adapters, JSON repair
   mock/, mockData.ts       sample repositories
 scripts/build-self-graph.mjs
 public/samples/            generated self-graph
@@ -85,14 +86,18 @@ Add an entry to the graph's `scenarios` (see [graph-format.md](graph-format.md#i
 ### Add an analysis route
 
 1. Put the algorithm in `lib/engines/` so it stays pure and testable.
-2. Add a request schema to `lib/server/schemas.ts` and a Claude output schema.
-3. Add a `…WithClaude` function to `lib/server/analyzers.ts` that validates model output against the graph.
-4. Keep the route thin: `parseBody`, then `runWithFallback(claude, local)`.
+2. Add a request schema to `lib/server/schemas.ts` and a model output schema (keep it simple — small local models must be able to fill it).
+3. Add a `…WithAi` function to `lib/server/analyzers.ts` that calls `getGenerator().generate(...)` and validates the output against the graph.
+4. Keep the route thin: `parseBody`, then `runWithFallback(ai, local)`.
 5. Add a wrapper in `lib/apiClient.ts`, with `withOfflineFallback` if the local engine can run in the browser.
 
-### Change the Claude model or effort
+### Switch or add an AI provider
 
-`CLAUDE_MODEL` lives in `lib/server/claude.ts`; effort is set per call in `lib/server/analyzers.ts`. Check the target model's thinking and fallback support before switching. This repo's self-graph includes a *"Make the Claude model configurable"* scenario that shows the change.
+Switching is configuration only: set `AI_PROVIDER` / `AI_MODEL` (see the README). Effort is set per call in `lib/server/analyzers.ts`.
+
+To add a provider that speaks the OpenAI protocol, add a preset to `PROVIDER_PRESETS` in `lib/server/ai/config.ts` (base URL, key variable, context budget) and a case to `tests/aiConfig.test.ts`. A provider with a different protocol needs a new `StructuredGenerator` adapter next to `anthropic.ts`. This repo's self-graph includes an *"Add a Mistral provider preset"* scenario showing the change.
+
+To try local models: install Ollama, `ollama pull qwen2.5-coder:14b`, then put `AI_PROVIDER=ollama` and `AI_MODEL=qwen2.5-coder:14b` in `.env.local`. Models under ~7B parameters often fail the structured output even with the repair retry; the app then falls back to the local engine and says why.
 
 ## Git conventions
 
