@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import type * as z from "zod/v4";
-import { describeClaudeError, isClaudeEnabled } from "@/lib/server/claude";
+import { describeAiError, getAiStatus } from "@/lib/server/ai";
 
 export type ApiSuccess<T> = { ok: true; data: T; warning?: string };
 export type ApiFailure = { ok: false; error: string };
@@ -29,20 +29,23 @@ export async function parseBody<Schema extends z.ZodType>(
 }
 
 /**
- * Prefer Claude when configured; on any Claude failure fall back to the
- * deterministic engine and surface why, so the UI never dead-ends.
+ * Prefer the configured AI provider; on any failure (or a broken configuration)
+ * fall back to the deterministic engine and surface why, so the UI never dead-ends.
  */
 export async function runWithFallback<T>(
-  withClaude: () => Promise<T>,
+  withAi: () => Promise<T>,
   locally: () => T | Promise<T>,
 ): Promise<NextResponse<ApiSuccess<T> | ApiFailure>> {
   let warning: string | undefined;
-  if (isClaudeEnabled()) {
+  const status = getAiStatus();
+  if (status.state === "misconfigured") {
+    warning = `AI provider misconfigured: ${status.error} Showing the local engine's result instead.`;
+  } else if (status.state === "enabled") {
     try {
-      return NextResponse.json({ ok: true, data: await withClaude() });
+      return NextResponse.json({ ok: true, data: await withAi() });
     } catch (error) {
-      warning = `${describeClaudeError(error)} Showing the local engine's result instead.`;
-      console.error("[codearchitect] Claude call failed:", error);
+      warning = `${describeAiError(error)} Showing the local engine's result instead.`;
+      console.error(`[codearchitect] ${status.label} call failed:`, error);
     }
   }
   try {

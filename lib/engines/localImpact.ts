@@ -173,7 +173,7 @@ export function analyzeImpactLocally(
     rootNodeId,
     summary:
       scenario?.summary ??
-      `"${root.data.label}" is the origin. ${brokenCount} component(s) consume it directly and ${impacts.length - brokenCount - 1} more are reached transitively. Edits below are heuristic markers — run with Claude for concrete code changes.`,
+      `"${root.data.label}" is the origin. ${brokenCount} component(s) consume it directly and ${impacts.length - brokenCount - 1} more are reached transitively. Edits below are heuristic markers — connect an AI model for concrete code changes.`,
     riskScore: computeRiskScore(impacts, graph.nodes.length),
     impacts,
     diffs,

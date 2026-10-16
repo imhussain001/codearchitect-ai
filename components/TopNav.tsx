@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { Bot, ChevronDown, Cpu, Download, FolderGit2, History, Loader2, Network, Radar } from "lucide-react";
-import type { ArchitectureGraph, EngineKind } from "@/lib/types";
+import type { ArchitectureGraph, EngineInfo } from "@/lib/types";
 
 export const CUSTOM_UPLOAD_OPTION = "__custom_upload__";
 
@@ -10,7 +10,7 @@ type Props = {
   graph: ArchitectureGraph;
   samples: readonly ArchitectureGraph[];
   importedGraph: ArchitectureGraph | null;
-  engine: { engine: EngineKind; model: string | null } | null;
+  engine: EngineInfo | null;
   isStoryOn: boolean;
   isImpactActive: boolean;
   isExporting: boolean;
@@ -84,12 +84,18 @@ export function TopNav(props: Props) {
       <span
         className={clsx(
           "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset",
-          engine?.engine === "claude" ? "bg-violet-500/10 text-violet-300 ring-violet-500/30" : "bg-zinc-800 text-zinc-400 ring-zinc-700",
+          engine?.engine === "ai" ? "bg-violet-500/10 text-violet-300 ring-violet-500/30" : "bg-zinc-800 text-zinc-400 ring-zinc-700",
         )}
-        title={engine?.engine === "claude" ? `Analysis by ${engine.model}` : "Deterministic local engine (set ANTHROPIC_API_KEY to enable Claude)"}
+        title={
+          engine?.engine === "ai"
+            ? `AI analysis by ${engine.label}`
+            : engine?.error
+              ? `AI provider misconfigured: ${engine.error}`
+              : "Deterministic local engine — set AI_PROVIDER (e.g. ollama) or a provider API key to enable AI"
+        }
       >
-        {engine?.engine === "claude" ? <Bot className="h-3 w-3" /> : <Cpu className="h-3 w-3" />}
-        {engine ? (engine.engine === "claude" ? "Claude" : "Local engine") : "…"}
+        {engine?.engine === "ai" ? <Bot className="h-3 w-3" /> : <Cpu className="h-3 w-3" />}
+        <span className="max-w-[180px] truncate">{engine ? (engine.engine === "ai" ? engine.label : "Local engine") : "…"}</span>
       </span>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">

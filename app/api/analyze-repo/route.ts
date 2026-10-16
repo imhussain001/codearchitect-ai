@@ -1,6 +1,6 @@
 import { buildHeuristicGraph } from "@/lib/engines/heuristicGraph";
 import { extractSourceFiles } from "@/lib/engines/zip";
-import { ingestWithClaude } from "@/lib/server/analyzers";
+import { ingestWithAi } from "@/lib/server/analyzers";
 import { downloadRepoArchive, parseGithubUrl } from "@/lib/server/github";
 import { fail, parseBody, runWithFallback } from "@/lib/server/respond";
 import { AnalyzeRepoRequestSchema } from "@/lib/server/schemas";
@@ -29,5 +29,5 @@ export async function POST(request: Request) {
   }
   if (files.length === 0) return fail("No supported source files found in the archive.", 422);
 
-  return runWithFallback(() => ingestWithClaude(name, files), () => buildHeuristicGraph(name, files));
+  return runWithFallback(() => ingestWithAi(name, files), () => buildHeuristicGraph(name, files));
 }

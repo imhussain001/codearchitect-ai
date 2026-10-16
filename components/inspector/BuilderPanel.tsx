@@ -79,7 +79,7 @@ export function BuilderPanel({ graph, status, error, result, ...actions }: Props
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="What should it do? (helps Claude)"
+          placeholder="What should it do? (helps the AI model)"
           maxLength={300}
           className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-300 placeholder:text-zinc-700 focus:border-violet-500 focus:outline-none"
         />
@@ -131,7 +131,7 @@ export function BuilderPanel({ graph, status, error, result, ...actions }: Props
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-400">
-              {result.summary} <span className="text-zinc-600">({result.engine === "claude" ? "Claude" : "templates"})</span>
+              {result.summary} <span className="text-zinc-600">({result.engine === "ai" ? result.engineLabel ?? "AI" : "templates"})</span>
             </p>
             <button type="button" onClick={actions.onApply} className="flex shrink-0 items-center gap-1 rounded-md bg-emerald-600/90 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-500">
               <CheckCheck className="h-3.5 w-3.5" /> Apply
