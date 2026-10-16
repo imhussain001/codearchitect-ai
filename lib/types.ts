@@ -9,6 +9,9 @@ export type NodeKind = "frontend" | "api" | "logic" | "data";
  */
 export type NodeStatus = "normal" | "modified" | "added" | "impacted" | "broken" | "proposed";
 
+/** Structural risk of one component, from `analyzeHealth`. */
+export type HealthLevel = "healthy" | "watch" | "risky";
+
 export type EngineKind = "ai" | "local";
 
 /** What `/api/health` reports: which engine analysis routes try first. */
@@ -46,13 +49,21 @@ export type NodeData = {
   keywords: string[];
   /** True for nodes drawn in the builder that do not exist in the codebase yet. */
   isDraft?: boolean;
+  /** Real size of the source file; `code` may be truncated for display. */
+  lineCount?: number;
 };
 
 /** Render-time data handed to `CustomNode`: static facts plus derived state. */
 export type RenderNodeData = NodeData & {
   status: NodeStatus;
+  /** Human label for `kind` in this graph (script graphs rename the layers). */
+  kindLabel: string;
   impactReason?: string;
   impactDepth?: number;
+  /** Set only while the Health overlay is on. */
+  heat?: { level: HealthLevel; score: number };
+  /** True when focus mode is on and this node is outside the focused neighbourhood. */
+  dimmed?: boolean;
 };
 
 export type ArchNode = Node<NodeData, "component">;
@@ -77,6 +88,8 @@ export type EdgeRenderData = {
   relation: EdgeRelation;
   isImpactPath: boolean;
   isDraft: boolean;
+  /** Part of a circular dependency (Health overlay). */
+  isCycle: boolean;
 };
 export type RenderEdge = Edge<EdgeRenderData>;
 
@@ -147,6 +160,8 @@ export type ArchitectureGraph = {
   edges: DependencyEdge[];
   commits: CommitSnapshot[];
   scenarios: ImpactScenario[];
+  /** Overrides for the four layer names, e.g. MATLAB graphs call `data` "Data files". */
+  kindLabels?: Partial<Record<NodeKind, string>>;
   /** Notes produced during ingestion (skipped files, truncation, heuristics used). */
   warnings?: string[];
 };

@@ -4,13 +4,14 @@ import { ReactFlowProvider, type Connection } from "@xyflow/react";
 import clsx from "clsx";
 import { AlertTriangle, Info, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArchitectureCanvas } from "@/components/ArchitectureCanvas";
+import { ArchitectureCanvas, type CenterRequest } from "@/components/ArchitectureCanvas";
 import type { NodeActions } from "@/components/CustomNode";
 import { ImportDialog } from "@/components/ImportDialog";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
 import { fetchEngine, requestImpact, requestRepoFromFiles, requestRepoFromGithub, requestScaffold, requestStory } from "@/lib/apiClient";
+import { analyzeHealth } from "@/lib/engines/health";
 import { commitsFromGitLog } from "@/lib/engines/story";
 import { kebabCase } from "@/lib/engines/localScaffold";
 import { findSample, SAMPLE_PROMPTS, SAMPLE_REPOSITORIES } from "@/lib/mockData";
@@ -36,6 +37,8 @@ export default function Page() {
   const [importedGraph, setImportedGraph] = useState<ArchitectureGraph | null>(null);
   const [importState, setImportState] = useState<{ open: boolean; busy: boolean; error: string | null }>({ open: false, busy: false, error: null });
   const [isExporting, setIsExporting] = useState(false);
+  const [centerRequest, setCenterRequest] = useState<CenterRequest | null>(null);
+  const centerNonce = useRef(0);
 
   // Async results are discarded if the user switched repositories while waiting.
   const graphIdRef = useRef(graph.id);
@@ -65,9 +68,21 @@ export default function Page() {
   }, [isPlaying, storyIndex, graph.commits.length, dispatch]);
 
   /* ---------- Derived canvas model ---------- */
+  const healthReport = useMemo(() => analyzeHealth(graph), [graph]);
+  const isHealthView = state.activeTab === "health";
+  const focusNodeId = state.focusEnabled ? state.selectedNodeId : null;
   const { nodes, edges } = useMemo(
-    () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story }),
-    [graph, state.impact.result, state.story],
+    () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story, health: isHealthView ? healthReport : null, focusNodeId, selectedNodeId: state.selectedNodeId }),
+    [graph, state.impact.result, state.story, isHealthView, healthReport, focusNodeId, state.selectedNodeId],
+  );
+
+  /** Select a component and pan/zoom the canvas to it. */
+  const selectAndCenter = useCallback(
+    (nodeId: string) => {
+      dispatch({ type: "selectNode", nodeId });
+      setCenterRequest({ nodeId, nonce: ++centerNonce.current });
+    },
+    [dispatch],
   );
 
   /* ---------- Handlers ---------- */
@@ -250,10 +265,12 @@ export default function Page() {
       />
 
       <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="relative h-[55vh] min-h-0 lg:h-auto lg:basis-[65%]" aria-label="Architecture graph">
+        <section data-tour="canvas" className="relative h-[55vh] min-h-0 lg:h-auto lg:basis-[65%]" aria-label="Architecture graph">
           <ReactFlowProvider>
             <ArchitectureCanvas
               graphKey={graph.id}
+              kindLabels={graph.kindLabels}
+              centerRequest={centerRequest}
               nodes={nodes}
               edges={edges}
               actions={nodeActions}
@@ -288,6 +305,8 @@ export default function Page() {
             state={state}
             dispatch={dispatch}
             samplePrompts={SAMPLE_PROMPTS[graph.id] ?? []}
+            healthReport={healthReport}
+            onSelectAndCenter={selectAndCenter}
             onRunImpact={() => void runImpact()}
             onSimulate={simulateFrom}
             onNarrate={() => void narrate()}

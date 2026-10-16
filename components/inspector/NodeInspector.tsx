@@ -3,8 +3,9 @@
 import clsx from "clsx";
 import { ArrowDownRight, ArrowUpRight, MousePointerClick, Zap } from "lucide-react";
 import { CodeBlock } from "@/components/inspector/CodeBlock";
+import type { NodeHealth } from "@/lib/engines/health";
 import type { ArchitectureGraph, ArchNode } from "@/lib/types";
-import { KIND_META } from "@/lib/ui";
+import { HEALTH_META, KIND_META, kindLabelFor } from "@/lib/ui";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -31,11 +32,12 @@ function Chips({ items, empty }: { items: string[]; empty: string }) {
 type Props = {
   graph: ArchitectureGraph;
   node: ArchNode | undefined;
+  health?: NodeHealth;
   onSelectNode: (id: string) => void;
   onSimulate: (id: string) => void;
 };
 
-export function NodeInspector({ graph, node, onSelectNode, onSimulate }: Props) {
+export function NodeInspector({ graph, node, health, onSelectNode, onSimulate }: Props) {
   if (!node) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-zinc-500">
@@ -60,10 +62,18 @@ export function NodeInspector({ graph, node, onSelectNode, onSimulate }: Props) 
             <p className="truncate font-mono text-[11px] text-zinc-500">{data.filePath}</p>
           </div>
           <span className={clsx("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset", KIND_META[data.kind].chip)}>
-            {KIND_META[data.kind].label}
+            {kindLabelFor(graph, data.kind)}
           </span>
         </div>
         <p className="text-sm leading-relaxed text-zinc-400">{data.description}</p>
+        {health && (
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
+            <span className={clsx("rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset", HEALTH_META[health.level].chip)} title="How costly and fragile this is to change (0-100). See the Health tab.">
+              Change-risk {health.score}
+            </span>
+            {health.reasons.length > 0 ? health.reasons.join(" · ") : "Few connections, low risk."}
+          </p>
+        )}
         <button
           type="button"
           onClick={() => onSimulate(node.id)}
