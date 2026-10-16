@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "graph:self": "node scripts/build-self-graph.mjs . public/samples/codearchitect-self.graph.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
