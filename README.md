@@ -14,9 +14,13 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | 💥 | **Blast-radius simulator** | Describe a change (e.g. *"Change `userId` from integer to UUID v4"*). Affected nodes pulse red (breaks) or amber (needs review), and the drawer shows a risk score and a side-by-side diff for every file that must change. |
 | ⏳ | **Time-machine story** | Replay commit history on the canvas: components appear as they were introduced, with a narrative for each phase. Paste any `git log --name-status` to build a timeline. |
 | 🧩 | **Diagram-to-code builder** | Add components, drag connections between them, and generate the new files plus the edits that wire them into existing ones. |
+| 🩺 | **Architecture health** | An A–F grade and a change-risk score per component from structure alone (no AI): circular dependencies, hubs, crossed layers, oversized files. The canvas shows a ring and a "Risk N" chip on every component. |
+| 🔎 | **Search & focus** | Find a component by name, path or symbol and jump to it. Focus mode dims everything except the selected component and its direct neighbours. |
+| 🎓 | **Easy to understand** | A guided tour on first visit, "In plain words" summaries of every component and analysis (with an effort estimate and order of work), tooltips and a glossary. |
+| 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write. |
 | 📦 | **Import / export** | Import a repository from a ZIP or a GitHub URL. Export every component's code plus a manifest that restores the exact graph. |
 
-Two sample repositories are built in (*E-Commerce API*, *Auth Microservice*). The app also ships a map of **its own codebase** in `public/samples/`; load it via **Custom Upload…** to explore how this project is put together.
+Three sample projects are built in (*E-Commerce API*, *Auth Microservice*, and a *Power-Systems Study* written in MATLAB). The app also ships a map of **its own codebase** in `public/samples/`; load it via **Custom Upload…** to explore how this project is put together.
 
 ## Quick start
 
@@ -35,6 +39,17 @@ Open http://localhost:3000. No configuration is needed.
 2. Open **Blast Radius**, click the sample prompt *"Change `userId` from integer to UUID v4"*, then **Run Impact Analysis**.
 3. Click **Toggle Time-Machine Story** and press ▶ to watch the architecture build up commit by commit.
 4. In **Builder**, add an *"Export PDF Button"*, drag from **User Dashboard**'s bottom handle to its top handle, then click **Generate glue code**.
+
+## Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `/` or `Ctrl`/`⌘`+`K` | Search components |
+| `F` | Toggle focus mode (dim everything but the selected component's neighbours) |
+| `?` | Replay the guided tour |
+| `Enter` / `↑` `↓` / `Esc` | In search: jump to result / move / close |
+
+Shortcuts are ignored while you type in a field.
 
 ## Scripts
 
@@ -108,7 +123,7 @@ flowchart LR
 |---|---|
 | [Architecture](docs/architecture.md) | Layers, data flow, state model, key design decisions |
 | [API reference](docs/api.md) | Every route: request, response, errors, limits |
-| [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, diff, repo mapping, git parsing, scaffolding |
+| [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, health scoring, script data-flow, search ranking, diff, repo mapping, git parsing, scaffolding |
 | [Graph format](docs/graph-format.md) | The `codearchitect/v1` JSON manifest, for building your own graphs |
 | [Development guide](docs/development.md) | Project layout, testing, adding samples and scenarios, Next.js 16 notes |
 
@@ -118,3 +133,5 @@ flowchart LR
 - Repository mapping by the local engine is file-level: one node per file, at most 60 files. An AI model groups files into architectural components instead.
 - Applied refactors and scaffolds change the in-memory model only. Use **Export Code Base** to get the files; nothing is written to your repository.
 - Graph state is not persisted between page reloads. Export the graph to keep it.
+- Script mapping reads string literals: file names built at run time (`[name '_base.csv']`) appear as patterns, files passed through variables to a helper function are linked to the script that names them rather than to the helper, and nothing is executed. Data file contents are never read.
+- Health scores are structural heuristics for deciding where to look first, not a verdict on code quality.

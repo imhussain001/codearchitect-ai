@@ -56,11 +56,15 @@ All types live in `lib/types.ts`.
 
 ### Why status is derived
 
-Three modes can colour the canvas: impact analysis, story frame and builder drafts. If each wrote a status into the nodes, switching modes would need cleanup code, and any missed path would leave a stale glow on the canvas. Instead `lib/viewModel.ts` recomputes the overlay on every render, with fixed precedence:
+Four modes can colour the canvas: health overlay, story frame, impact analysis and builder drafts. If each wrote a status into the nodes, switching modes would need cleanup code, and any missed path would leave a stale glow on the canvas. Instead `lib/viewModel.ts` recomputes the overlay on every render, with fixed precedence:
 
 ```
-story frame  >  impact analysis  >  draft (proposed)  >  normal
+health overlay  >  story frame  >  impact analysis  >  draft (proposed)  >  normal
 ```
+
+The health overlay is on whenever the Health tab is open, so it is derived from the active tab rather than stored. Two things are independent of that precedence: **focus dimming** (the selected component and its direct neighbours stay bright, everything else is dimmed) and **selection**, which comes from app state so selecting from a side panel highlights the node just like clicking it.
+
+**Pan to a component.** Panels outside the canvas cannot call React Flow, so `app/page.tsx` keeps a `{ nodeId, nonce }` request; a controller inside the canvas runs `fitView` whenever a new nonce arrives. Search, the health lists and the impact lists all use it.
 
 The cost is one O(V+E) pass per render, which is negligible at the graph sizes involved (≤ 200 nodes by schema).
 
