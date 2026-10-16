@@ -25,6 +25,10 @@ const COMPONENTS = [
   ["diff-viewer", "Diff Viewer", "frontend", "components/inspector/DiffViewer.tsx", "Collapsible side-by-side diff cards built on the LCS line diff.", ["diff", "side", "before", "after"], [{ name: "items", type: "DiffItem[]" }]],
   ["code-block", "Code Block", "frontend", "components/inspector/CodeBlock.tsx", "Line-numbered code view with lightweight lexical highlighting and copy button.", ["code", "highlight", "syntax", "copy"], [{ name: "code", type: "string" }]],
   ["import-dialog", "Import Dialog", "frontend", "components/ImportDialog.tsx", "Modal for ZIP/JSON drop and GitHub URL submission.", ["import", "upload", "zip", "github", "dialog"], []],
+  ["search-box", "Search & Focus Box", "frontend", "components/SearchBox.tsx", "Accessible combobox over components plus the focus-mode toggle; / and Ctrl+K focus it.", ["search", "focus", "combobox", "find"], [{ name: "nodes", type: "ArchNode[]" }]],
+  ["guided-tour", "Guided Tour", "frontend", "components/GuidedTour.tsx", "Spotlight overlay that walks a first-time user through the real controls, switching drawer tabs as needed.", ["tour", "onboarding", "help", "spotlight"], [{ name: "open", type: "boolean" }]],
+  ["health-panel", "Health Tab", "frontend", "components/inspector/HealthPanel.tsx", "Grade, riskiest components and plain-language issues; clicking one pans the canvas to it.", ["health", "risk", "cycle", "hub", "grade"], [{ name: "report", type: "HealthReport" }]],
+  ["glossary", "Glossary", "frontend", "components/Glossary.tsx", "Collapsible plain-language definitions of blast radius, broken/impacted, hop, change-risk and more.", ["glossary", "terms", "help"], []],
 
   // ---- API routes
   ["api-impact", "POST /api/impact", "api", "app/api/impact/route.ts", "Validates the graph + prompt, then Claude or the local impact engine.", ["impact", "route", "api", "endpoint"], [{ name: "body", type: "{ graph, prompt, selectedNodeId }" }]],
@@ -46,6 +50,11 @@ const COMPONENTS = [
   ["scaffold-engine", "Scaffold Templates", "logic", "lib/engines/localScaffold.ts", "Per-kind code templates and wiring edits for draft components.", ["scaffold", "template", "codegen", "builder"], []],
   ["zip-reader", "ZIP Reader", "logic", "lib/engines/zip.ts", "JSZip extraction with size caps and GitHub top-folder stripping.", ["zip", "archive", "extract"], [{ name: "data", type: "ArrayBuffer | Uint8Array" }]],
   ["graph-schema", "Graph Schema (zod)", "logic", "lib/graphSchema.ts", "Bounded zod schema for graphs; shared by API validation and JSON import.", ["schema", "zod", "validation"], []],
+  ["health-engine", "Health Engine", "logic", "lib/engines/health.ts", "Per-component change-risk, circular dependencies (Tarjan SCC), hubs, crossed layers, oversized files and an A-F grade.", ["health", "risk", "cycle", "hub", "scc", "layering", "grade"], [{ name: "graph", type: "ArchitectureGraph" }]],
+  ["scripts-engine", "Script Mapper (MATLAB/Python)", "logic", "lib/engines/scripts.ts", "Lexer plus data-flow mapping: which script calls which function and which data files it reads and writes.", ["matlab", "python", "script", "csv", "data", "lexer", "dataflow"], [{ name: "files", type: "SourceFile[]" }]],
+  ["explain", "Plain-language Explainer", "logic", "lib/explain.ts", "Turns the graph and impact results into everyday sentences, an effort estimate and an order of work.", ["explain", "plain", "effort", "glossary"], [{ name: "result", type: "ImpactAnalysisResult" }]],
+  ["search-lib", "Search Ranking", "logic", "lib/search.ts", "AND-of-words ranking over name, path, export, keyword and description.", ["search", "rank", "find"], [{ name: "query", type: "string" }]],
+  ["tour-lib", "Tour Steps", "logic", "lib/tour.ts", "The tour script plus localStorage-safe seen flag.", ["tour", "steps", "storage"], []],
 
   // ---- Server-side logic
   ["server-schemas", "API Request Schemas", "logic", "lib/server/schemas.ts", "Request validation and provider-neutral model output schemas.", ["schema", "zod", "structured", "output"], []],
@@ -78,6 +87,7 @@ const byPath = new Map(COMPONENTS.map((c) => [c[3].replace(/\.(tsx?|jsx?)$/, "")
 // Folded modules map onto their owning component.
 byPath.set("lib/mock/authMicroservice", "sample-repos");
 byPath.set("lib/mock/ecommerceApi", "sample-repos");
+byPath.set("lib/mock/powerSystems", "sample-repos");
 
 function resolve(fromPath, spec) {
   let p;
@@ -126,9 +136,11 @@ for (const [source, target, label] of HTTP_EDGES) edges.push({ id: `e-${source}-
 const ROWS = [
   ["top-nav", "import-dialog", "page", "canvas", "custom-node"],
   ["node-inspector", "blast-panel", "inspector-panel", "story-panel", "builder-panel", "diff-viewer", "code-block"],
+  ["search-box", "guided-tour", "health-panel", "glossary"],
   ["api-analyze", "api-story", "api-impact", "api-scaffold", "api-health"],
   ["portability", "api-client", "workspace-store", "view-model", "line-diff"],
   ["heuristic-graph", "zip-reader", "story-engine", "impact-engine", "scaffold-engine", "graph-core", "graph-schema"],
+  ["health-engine", "scripts-engine", "explain", "search-lib", "tour-lib"],
   ["github-fetch", "respond", "analyzers", "server-schemas", "sample-repos"],
   ["ai-json", "ai-gateway", "ai-config", "anthropic-adapter", "openai-adapter"],
 ];
@@ -228,6 +240,13 @@ const NARRATIVES = {
   "feat(samples):": ["Phase 6 · Self-mapping", "The tool maps its own repository: authored components, import-derived edges, and scenarios whose diffs are exact edits to real files."],
   "fix(impact):": ["Phase 7 · Dogfooding pays off", "Mapping its own code exposed that the local engine flagged every direct dependent as broken. With an authored scenario, only files that need an edit are now 'broken'; the rest are review-only."],
   "feat(ai):": ["Phase 9 · Any model", "The Claude-only gateway becomes a provider layer: one structured-output interface, a native Anthropic adapter and a tolerant OpenAI-compatible adapter covering OpenAI, Gemini, Ollama, LM Studio and more. Free local models make AI analysis available without a paid API."],
+  "test(live):": ["Phase 8a · Real-model harness", "An opt-in suite scores real AI models on every feature against the graph, not just for valid JSON."],
+  "fix(test):": ["Phase 8b · A hidden failure", "The live suite matched the default test glob and failed to load, so npm test exited with an error while its summary still said 'passed'. Caught when running the whole suite for exit codes."],
+  "feat(health):": ["Phase 9a · Architecture health", "A structural scorecard with no AI: change-risk per component, circular dependencies, hubs, crossed layers and oversized files, shown as rings and chips on the canvas."],
+  "feat(search):": ["Phase 9b · Search and focus", "Find a component by name, path or symbol and jump to it; focus mode dims everything but its neighbours so large maps stay readable."],
+  "feat(guide):": ["Phase 9c · Approachability", "Plain-language summaries, effort estimates and a spotlight tour make the vocabulary and controls understandable without prior knowledge."],
+  "feat(scripts):": ["Phase 9d · Research code", "MATLAB and Python scripts become data-flow maps: entry scripts, helper functions, and the data files they read and write."],
+  "chore(samples):": ["Refreshing the map", "The map of this repository is rebuilt from the current code and git history so it never goes stale."],
   "docs:": ["Phase 8 · Documentation", "README plus architecture, API, engine, format and development guides — no component code changes."],
 };
 
@@ -238,7 +257,7 @@ function nodeIdForFile(file) {
 function readGitHistory() {
   let log;
   try {
-    log = execFileSync("git", ["-C", root, "log", "--reverse", "--name-status", "--date=short", "--pretty=format:@@%h|%an|%ad|%s"], { encoding: "utf8" });
+    log = execFileSync("git", ["-C", root, "log", "--reverse", "--no-merges", "--name-status", "--date=short", "--pretty=format:@@%h|%an|%ad|%s"], { encoding: "utf8" });
   } catch {
     return { commits: [], warning: "No git history found; Story mode is empty. Run inside a git checkout." };
   }
@@ -263,9 +282,12 @@ function readGitHistory() {
       }
     }
     const key = Object.keys(NARRATIVES).find((prefix) => message.startsWith(prefix));
-    const [phase, narrative] = key
+    const subject = message.replace(/^\w+(\([^)]*\))?:\s*/, "");
+    const [rawTitle, narrative] = key
       ? NARRATIVES[key]
-      : [`Commit ${commits.length + 1}`, `${message}. Touches ${added.length + modified.length} mapped component(s).`];
+      : [subject, `${message}. Touches ${added.length + modified.length} mapped component(s).`];
+    // Phases are numbered by position so the timeline always reads in order, whatever the table says.
+    const phase = `Phase ${commits.length + 1} · ${rawTitle.replace(/^Phase \w+ · /, "")}`;
     commits.push({ hash, author, date, message, phase, narrative, addedNodeIds: added, modifiedNodeIds: modified });
   }
   return { commits, warning: commits.length ? null : "This checkout has no commits yet; Story mode is empty." };
