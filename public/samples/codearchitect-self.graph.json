@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-16T11:20:57.468Z",
+  "exportedAt": "2026-10-16T11:59:42.750Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -1860,7 +1860,7 @@
     ],
     "commits": [
       {
-        "hash": "73f2427",
+        "hash": "ab4b8e9",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "chore: scaffold Next.js 16 app with Tailwind 4, React Flow and Vitest",
@@ -1870,7 +1870,7 @@
         "modifiedNodeIds": []
       },
       {
-        "hash": "eb11570",
+        "hash": "96b1ba4",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "feat(domain): add graph types and sample repositories",
@@ -1882,7 +1882,7 @@
         "modifiedNodeIds": []
       },
       {
-        "hash": "2048141",
+        "hash": "7751743",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "feat(engines): add graph traversal, line diff and local analysis engines",
@@ -1900,7 +1900,7 @@
         "modifiedNodeIds": []
       },
       {
-        "hash": "d16babf",
+        "hash": "9bd1fd4",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "feat(api): add Claude-backed analysis routes with local fallback",
@@ -1922,7 +1922,7 @@
         "modifiedNodeIds": []
       },
       {
-        "hash": "49a75de",
+        "hash": "acbacf7",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "feat(ui): add workspace dashboard with canvas, inspector tabs and builder",
@@ -1949,7 +1949,7 @@
         "modifiedNodeIds": []
       },
       {
-        "hash": "4ce9bad",
+        "hash": "856daf9",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "fix(diff): wrap long lines so before/after columns stay aligned",
@@ -1961,7 +1961,7 @@
         ]
       },
       {
-        "hash": "aab5b5e",
+        "hash": "0fc36a9",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "feat(samples): map this repository as a self-describing sample graph",
@@ -1971,7 +1971,7 @@
         "modifiedNodeIds": []
       },
       {
-        "hash": "780c5fe",
+        "hash": "e9e8790",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "fix(impact): flag only scenario-edited files as broken",
@@ -1983,12 +1983,22 @@
         ]
       },
       {
-        "hash": "a8f87e9",
+        "hash": "e983ae1",
         "author": "imhussain001",
         "date": "2026-10-16",
         "message": "docs: add README and architecture, API, engine and format docs",
         "phase": "Phase 8 · Documentation",
         "narrative": "README plus architecture, API, engine, format and development guides — no component code changes.",
+        "addedNodeIds": [],
+        "modifiedNodeIds": []
+      },
+      {
+        "hash": "48cf245",
+        "author": "imhussain001",
+        "date": "2026-10-16",
+        "message": "chore(samples): regenerate self graph from git history",
+        "phase": "Commit 10",
+        "narrative": "chore(samples): regenerate self graph from git history. Touches 0 mapped component(s).",
         "addedNodeIds": [],
         "modifiedNodeIds": []
       }
