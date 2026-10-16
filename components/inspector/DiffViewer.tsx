@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { ChevronDown, FileCode2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { highlightLine, CopyButton } from "@/components/inspector/CodeBlock";
 import { diffLines, type DiffLine, type DiffRow } from "@/lib/diff";
 import type { DiffItem } from "@/lib/types";
@@ -16,10 +16,10 @@ const CELL_TONE: Record<DiffRow["type"], { left: string; right: string }> = {
 
 function Cell({ line, tone, sign }: { line?: DiffLine; tone: string; sign: string }) {
   return (
-    <div className={clsx("grid min-w-0 grid-cols-[2.25rem_0.75rem_1fr]", tone)}>
+    <div className={clsx("grid h-full grid-cols-[2rem_0.75rem_minmax(0,1fr)]", tone)}>
       <span className="select-none pr-1 text-right text-zinc-600">{line?.lineNo ?? ""}</span>
       <span className="select-none text-zinc-500">{line && tone ? sign : ""}</span>
-      <span className="whitespace-pre pr-3 text-zinc-200">{line ? highlightLine(line.text) : ""}</span>
+      <span className="min-w-0 whitespace-pre-wrap break-all pr-2 text-zinc-200">{line ? highlightLine(line.text) : ""}</span>
     </div>
   );
 }
@@ -52,15 +52,18 @@ function DiffCard({ item, defaultOpen }: { item: DiffItem; defaultOpen: boolean 
             <span className="px-3 py-1">Before</span>
             <span className="border-l border-zinc-800 px-3 py-1">After</span>
           </div>
+          {/* One grid for all rows: equal halves, long lines wrap so Before and After stay visible and row-aligned. */}
           <div className="scrollbar-thin max-h-[360px] overflow-auto font-mono text-[11px] leading-5">
-            {rows.map((row, i) => (
-              <div key={i} className="grid grid-cols-2">
-                <Cell line={row.left} tone={CELL_TONE[row.type].left} sign="−" />
-                <div className="border-l border-zinc-800">
-                  <Cell line={row.right} tone={CELL_TONE[row.type].right} sign="+" />
-                </div>
-              </div>
-            ))}
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              {rows.map((row, i) => (
+                <Fragment key={i}>
+                  <Cell line={row.left} tone={CELL_TONE[row.type].left} sign="−" />
+                  <div className="border-l border-zinc-800">
+                    <Cell line={row.right} tone={CELL_TONE[row.type].right} sign="+" />
+                  </div>
+                </Fragment>
+              ))}
+            </div>
           </div>
         </>
       )}
