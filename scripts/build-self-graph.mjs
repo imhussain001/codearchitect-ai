@@ -48,12 +48,16 @@ const COMPONENTS = [
   ["graph-schema", "Graph Schema (zod)", "logic", "lib/graphSchema.ts", "Bounded zod schema for graphs; shared by API validation and JSON import.", ["schema", "zod", "validation"], []],
 
   // ---- Server-side logic
-  ["server-schemas", "API Request Schemas", "logic", "lib/server/schemas.ts", "Request validation and Claude structured-output schemas.", ["schema", "zod", "structured", "output"], []],
+  ["server-schemas", "API Request Schemas", "logic", "lib/server/schemas.ts", "Request validation and provider-neutral model output schemas.", ["schema", "zod", "structured", "output"], []],
   ["respond", "Route Responder", "logic", "lib/server/respond.ts", "Body parsing, error envelopes, and Claude→local fallback orchestration.", ["respond", "fallback", "envelope", "route"], []],
-  ["analyzers", "Claude Analyzers", "logic", "lib/server/analyzers.ts", "Prompts for impact/story/scaffold/ingest; validates Claude output against the graph.", ["claude", "analyzer", "prompt", "llm"], []],
+  ["analyzers", "AI Analyzers", "logic", "lib/server/analyzers.ts", "Provider-neutral prompts for impact/story/scaffold/ingest; fits code to the model's budget and validates output against the graph.", ["analyzer", "prompt", "llm", "ai"], []],
+  ["ai-gateway", "AI Provider Gateway", "logic", "lib/server/ai/index.ts", "Resolves the configured provider, caches its generator, and maps provider errors to safe messages.", ["ai", "provider", "gateway", "llm", "model"], []],
+  ["ai-config", "Provider Config", "logic", "lib/server/ai/config.ts", "Pure env → provider resolution: presets for Anthropic, OpenAI, Gemini, Ollama, LM Studio, OpenRouter, Groq, DeepSeek, custom.", ["provider", "config", "preset", "ollama", "openai", "gemini", "mistral", "env"], [{ name: "env", type: "Record<string, string | undefined>" }]],
+  ["ai-json", "JSON Repair", "logic", "lib/server/ai/json.ts", "Extracts JSON from fenced/prose replies, validates with Zod, and phrases errors for a repair retry.", ["json", "repair", "validation", "zod"], [{ name: "text", type: "string" }]],
 
   // ---- External services / data
-  ["claude-client", "Claude API Gateway", "data", "lib/server/claude.ts", "Anthropic SDK client: model choice, structured output, refusal fallback, error mapping. External dependency.", ["claude", "anthropic", "model", "sdk", "opus", "sonnet"], [{ name: "effort", type: "'low' | 'medium' | 'high' | 'xhigh' | 'max'" }]],
+  ["anthropic-adapter", "Anthropic Adapter", "data", "lib/server/ai/anthropic.ts", "Claude via the Anthropic SDK: native structured outputs, refusal fallback. External dependency.", ["anthropic", "claude", "sdk", "adapter"], [{ name: "config", type: "ProviderConfig" }]],
+  ["openai-adapter", "OpenAI-compatible Adapter", "data", "lib/server/ai/openaiCompatible.ts", "OpenAI, Gemini, Ollama, LM Studio, OpenRouter, Groq, DeepSeek: degrading response_format, one repair retry. External dependency.", ["openai", "ollama", "gemini", "compatible", "adapter"], [{ name: "config", type: "ProviderConfig" }]],
   ["github-fetch", "GitHub Archive Fetcher", "data", "lib/server/github.ts", "SSRF-safe zipball download from api.github.com. External dependency.", ["github", "fetch", "zipball", "download"], [{ name: "url", type: "string" }]],
   ["sample-repos", "Sample Repositories", "data", "lib/mockData.ts", "Built-in E-Commerce and Auth sample graphs, prompts and scenarios.", ["mock", "sample", "data", "fixtures"], []],
 ];
@@ -83,11 +87,12 @@ function resolve(fromPath, spec) {
     for (const s of spec.split("/")) s === ".." ? parts.pop() : s !== "." && parts.push(s);
     p = parts.join("/");
   } else return null;
-  return byPath.get(p) ?? null;
+  // A folder import ("@/lib/server/ai") resolves to its index file.
+  return byPath.get(p) ?? byPath.get(`${p}/index`) ?? null;
 }
 
 const relationFor = (sourceKind, targetKind, targetId) =>
-  targetId === "claude-client" || targetId === "github-fetch" ? "calls" : targetKind === "data" ? "reads" : sourceKind === "frontend" && targetKind === "frontend" ? "imports" : "calls";
+  targetId === "anthropic-adapter" || targetId === "openai-adapter" || targetId === "github-fetch" ? "calls" : targetKind === "data" ? "reads" : sourceKind === "frontend" && targetKind === "frontend" ? "imports" : "calls";
 
 const kindOf = new Map(COMPONENTS.map((c) => [c[0], c[2]]));
 const nodes = [];
@@ -124,7 +129,8 @@ const ROWS = [
   ["api-analyze", "api-story", "api-impact", "api-scaffold", "api-health"],
   ["portability", "api-client", "workspace-store", "view-model", "line-diff"],
   ["heuristic-graph", "zip-reader", "story-engine", "impact-engine", "scaffold-engine", "graph-core", "graph-schema"],
-  ["github-fetch", "respond", "analyzers", "server-schemas", "claude-client", "sample-repos"],
+  ["github-fetch", "respond", "analyzers", "server-schemas", "sample-repos"],
+  ["ai-json", "ai-gateway", "ai-config", "anthropic-adapter", "openai-adapter"],
 ];
 const COL_PX = 250;
 const ROW_PX = 200;
@@ -186,18 +192,25 @@ const scenarios = [
     ],
   },
   {
-    id: "self-model-env",
-    title: "Make the Claude model configurable",
-    triggers: ["sonnet", "haiku", "configurable model", "model.*(env|config)", "switch.*model"],
-    rootNodeId: "claude-client",
+    id: "self-add-provider",
+    title: "Add a Mistral provider preset",
+    triggers: ["mistral", "add (a |another )?provider", "new provider", "provider preset"],
+    rootNodeId: "ai-config",
     summary:
-      "Reading the model from `CODEARCHITECT_MODEL` is a one-line change in the Claude gateway. No caller breaks at compile time, but every Claude-backed route changes behaviour and cost, and `/api/health` reports the configured model. Note that `fallbacks: \"default\"` and adaptive thinking rules differ per model; verify the chosen model supports them.",
+      "Mistral speaks the OpenAI Chat Completions protocol, so adding it is a config-only change: one ProviderId union member and one preset. No adapter changes; the gateway, analyzers and routes pick it up through the existing interface and nothing breaks at compile time. Add a resolution test and a README row.",
     extraImpacts: [],
     diffs: [
       {
-        nodeId: "claude-client",
-        rationale: "Env override with the current default.",
-        after: edit("claude-client", [['export const CLAUDE_MODEL = "claude-opus-5-5";', 'export const CLAUDE_MODEL = process.env.CODEARCHITECT_MODEL || "claude-opus-5-5";']]),
+        nodeId: "ai-config",
+        rationale: "New ProviderId member plus its preset (base URL, key variable, context budget).",
+        after: edit("ai-config", [
+          ['  | "deepseek"\n  | "custom";', '  | "deepseek"\n  | "mistral"\n  | "custom";'],
+          [
+            '  custom: { label: "Custom endpoint",',
+            '  mistral: { label: "Mistral", protocol: "openai-compatible", baseURL: "https://api.mistral.ai/v1", keyEnv: "MISTRAL_API_KEY", requiresKey: true, maxInputChars: MEDIUM_CONTEXT_CHARS },\n  custom: { label: "Custom endpoint",',
+          ],
+          ['const AUTO_DETECT_ORDER: ProviderId[] = ["anthropic", "openai", "gemini", "openrouter", "groq", "deepseek"];', 'const AUTO_DETECT_ORDER: ProviderId[] = ["anthropic", "openai", "gemini", "openrouter", "groq", "deepseek", "mistral"];'],
+        ]),
       },
     ],
   },
@@ -214,6 +227,7 @@ const NARRATIVES = {
   "fix(diff):": ["Phase 5 · Found in the browser", "Browser testing showed long lines bleeding from the Before column into After. The fix moves to one shared grid with wrapping cells — a bug no unit test would have caught."],
   "feat(samples):": ["Phase 6 · Self-mapping", "The tool maps its own repository: authored components, import-derived edges, and scenarios whose diffs are exact edits to real files."],
   "fix(impact):": ["Phase 7 · Dogfooding pays off", "Mapping its own code exposed that the local engine flagged every direct dependent as broken. With an authored scenario, only files that need an edit are now 'broken'; the rest are review-only."],
+  "feat(ai):": ["Phase 9 · Any model", "The Claude-only gateway becomes a provider layer: one structured-output interface, a native Anthropic adapter and a tolerant OpenAI-compatible adapter covering OpenAI, Gemini, Ollama, LM Studio and more. Free local models make AI analysis available without a paid API."],
   "docs:": ["Phase 8 · Documentation", "README plus architecture, API, engine, format and development guides — no component code changes."],
 };
 
