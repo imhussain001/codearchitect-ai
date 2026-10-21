@@ -30,6 +30,22 @@ const JS_EXPORT = /export\s+(default\s+)?(?:async\s+)?(?:function\*?|const|let|c
 const PY_EXPORT = /^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm;
 const FIRST_SIGNATURE = /(?:function\s+\w+|def\s+\w+|\w+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)/;
 
+/**
+ * Specifiers imported only through `import type` / `export type` (and never by value) in a file.
+ * Type-only imports are erased at runtime, so they are not architectural coupling.
+ */
+export function typeOnlyImports(file: SourceFile): Set<string> {
+  if (file.path.endsWith(".py") || file.path.endsWith(".m")) return new Set();
+  const typeSpecs = new Set<string>();
+  const valueSpecs = new Set<string>();
+  for (const match of file.content.matchAll(JS_IMPORT)) {
+    const spec = match[1];
+    if (!spec) continue;
+    (/^(import|export)\s+type\b/.test(match[0]) ? typeSpecs : valueSpecs).add(spec);
+  }
+  return new Set([...typeSpecs].filter((s) => !valueSpecs.has(s)));
+}
+
 export function extractImports(file: SourceFile): string[] {
   const specs = new Set<string>();
   const pattern = file.path.endsWith(".py") ? PY_IMPORT : JS_IMPORT;
@@ -111,14 +127,14 @@ function relevance(file: SourceFile): number {
   return kindWeight - depthPenalty + Math.min(file.content.length / 20_000, 1);
 }
 
-export function selectGraphFiles(files: readonly SourceFile[]): { selected: SourceFile[]; warnings: string[] } {
+export function selectGraphFiles(files: readonly SourceFile[], maxFiles: number = MAX_GRAPH_FILES): { selected: SourceFile[]; warnings: string[] } {
   const candidates = files.filter((f) => isAnalyzableSource(f.path));
   const warnings: string[] = [];
   if (candidates.length === 0) warnings.push("No supported source files found (ts, js, py, go, java, rb, cs, php, vue, svelte).");
-  if (candidates.length > MAX_GRAPH_FILES) {
-    warnings.push(`Showing the ${MAX_GRAPH_FILES} most architecturally relevant of ${candidates.length} source files.`);
+  if (candidates.length > maxFiles) {
+    warnings.push(`Showing the ${maxFiles} most architecturally relevant of ${candidates.length} source files.`);
   }
-  const selected = [...candidates].sort((a, b) => relevance(b) - relevance(a)).slice(0, MAX_GRAPH_FILES);
+  const selected = [...candidates].sort((a, b) => relevance(b) - relevance(a)).slice(0, maxFiles);
   return { selected, warnings };
 }
 
@@ -132,8 +148,8 @@ export function truncateCode(content: string): string {
  * Deterministic file-level dependency graph: one node per relevant source file,
  * one edge per resolvable internal import.
  */
-export function buildHeuristicGraph(name: string, files: readonly SourceFile[]): ArchitectureGraph {
-  const { selected, warnings } = selectGraphFiles(files);
+export function buildHeuristicGraph(name: string, files: readonly SourceFile[], options: { maxFiles?: number } = {}): ArchitectureGraph {
+  const { selected, warnings } = selectGraphFiles(files, options.maxFiles);
   const index = new Map(selected.map((f) => [stripExtension(f.path), f.path]));
   const idForPath = new Map(selected.map((f) => [f.path, slugify(f.path)]));
 
@@ -159,6 +175,7 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[]):
   const edges: DependencyEdge[] = [];
   const seen = new Set<string>();
   for (const file of selected) {
+    const typeOnly = typeOnlyImports(file);
     for (const spec of extractImports(file)) {
       const targetPath = resolveImport(file.path, spec, index);
       if (!targetPath || targetPath === file.path) continue;
@@ -167,7 +184,7 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[]):
       const id = `e-${source}--${target}`;
       if (seen.has(id)) continue;
       seen.add(id);
-      edges.push({ id, source, target, relation: "imports" });
+      edges.push({ id, source, target, relation: "imports", ...(typeOnly.has(spec) ? { typeOnly: true } : {}) });
     }
   }
 
