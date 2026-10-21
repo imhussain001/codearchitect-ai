@@ -1,0 +1,235 @@
+/**
+ * CodeArchitect command line: architecture health, rules and pull-request blast radius.
+ *
+ *   codearchitect analyze [dir]                       health + rules of the working tree
+ *   codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
+ *
+ * Files are read through git, so any two commits can be compared without checking them out.
+ * Exit codes: 0 passed, 1 check failed, 2 usage or environment error.
+ */
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
+import { buildHeuristicGraph, isAnalyzableSource } from "../../lib/engines/heuristicGraph";
+import { comparisonToJson, compareSnapshots, evaluateCheck, renderAnalysis, renderMarkdown, takeSnapshot, type CheckOptions } from "../../lib/report";
+import { parseRulesJson } from "../../lib/rulesSchema";
+import type { ArchRule, SourceFile } from "../../lib/types";
+
+const CONFIG_FILE = ".codearchitect.json";
+const MAX_SOURCE_FILE_BYTES = 200 * 1024;
+const MAX_MAPPED_FILES = 500;
+const MAX_GIT_BUFFER_BYTES = 1 << 30;
+const SKIPPED_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", ".next", "coverage", "venv", ".venv", "__pycache__", "target", "vendor"]);
+
+class UsageError extends Error {}
+
+/* ---------- Arguments ---------- */
+
+type Args = { command: string; positional: string[]; flags: Map<string, string | true> };
+
+const BOOLEAN_FLAGS = new Set(["help", "no-fail", "no-fail-on-cycles", "no-fail-on-violations"]);
+
+function parseArgs(argv: string[]): Args {
+  const [command = "help", ...rest] = argv;
+  const flags = new Map<string, string | true>();
+  const positional: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i]!;
+    if (!arg.startsWith("--")) {
+      positional.push(arg);
+      continue;
+    }
+    const [name, inline] = arg.slice(2).split(/=(.*)/s);
+    if (!name) throw new UsageError(`Unexpected argument "${arg}".`);
+    if (inline !== undefined) flags.set(name, inline);
+    else if (BOOLEAN_FLAGS.has(name)) flags.set(name, true);
+    else {
+      const value = rest[++i];
+      if (value === undefined || value.startsWith("--")) throw new UsageError(`--${name} needs a value.`);
+      flags.set(name, value);
+    }
+  }
+  return { command, positional, flags };
+}
+
+function flag(args: Args, name: string): string | undefined {
+  const value = args.flags.get(name);
+  return typeof value === "string" ? value : undefined;
+}
+
+/* ---------- Reading source ---------- */
+
+function git(cwd: string, args: string[], input?: string): Buffer {
+  try {
+    return execFileSync("git", args, { cwd, input, maxBuffer: MAX_GIT_BUFFER_BYTES, stdio: ["pipe", "pipe", "pipe"] });
+  } catch (error) {
+    const stderr = (error as { stderr?: Buffer }).stderr?.toString().trim();
+    throw new UsageError(`git ${args.join(" ")} failed${stderr ? `: ${stderr}` : "."}`);
+  }
+}
+
+function isGitRepo(dir: string): boolean {
+  try {
+    git(dir, ["rev-parse", "--is-inside-work-tree"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Source files of a commit, read with one `git cat-file --batch` call. */
+function sourceFilesAtRef(cwd: string, ref: string): SourceFile[] {
+  const paths = git(cwd, ["ls-tree", "-r", "-z", "--name-only", ref]).toString("utf8").split("\0").filter(isAnalyzableSource);
+  if (paths.length === 0) return [];
+  const out = git(cwd, ["cat-file", "--batch"], paths.map((p) => `${ref}:${p}\n`).join(""));
+
+  const files: SourceFile[] = [];
+  let pos = 0;
+  for (const path of paths) {
+    const eol = out.indexOf(0x0a, pos);
+    if (eol < 0) break;
+    const header = out.subarray(pos, eol).toString("utf8");
+    pos = eol + 1;
+    const size = Number(header.split(" ")[2]);
+    if (!Number.isFinite(size)) continue; // "<object> missing"
+    const body = out.subarray(pos, pos + size);
+    pos += size + 1;
+    if (size <= MAX_SOURCE_FILE_BYTES) files.push({ path, content: body.toString("utf8") });
+  }
+  return files;
+}
+
+function walk(dir: string, prefix = ""): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.isDirectory()) return SKIPPED_DIRS.has(entry.name) ? [] : walk(join(dir, entry.name), `${prefix}${entry.name}/`);
+    return [`${prefix}${entry.name}`];
+  });
+}
+
+function sourceFilesInDir(dir: string): SourceFile[] {
+  const paths = isGitRepo(dir)
+    ? git(dir, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]).toString("utf8").split("\0")
+    : walk(dir);
+  return paths
+    .filter(isAnalyzableSource)
+    .filter((p) => existsSync(join(dir, p)) && statSync(join(dir, p)).size <= MAX_SOURCE_FILE_BYTES)
+    .map((path) => ({ path, content: readFileSync(join(dir, path), "utf8") }));
+}
+
+function loadRules(text: string | null, origin: string): ArchRule[] {
+  if (text === null) return [];
+  const parsed = parseRulesJson(text);
+  if (!parsed.ok) throw new UsageError(`${origin}: ${parsed.error}`);
+  return parsed.rules;
+}
+
+function rulesFromFile(path: string): ArchRule[] {
+  return existsSync(path) ? loadRules(readFileSync(path, "utf8"), path) : [];
+}
+
+function rulesAtRef(cwd: string, ref: string): ArchRule[] {
+  try {
+    return loadRules(git(cwd, ["show", `${ref}:${CONFIG_FILE}`]).toString("utf8"), `${CONFIG_FILE} at ${ref}`);
+  } catch (error) {
+    if (error instanceof UsageError && /does not exist|exists on disk, but not in/.test(error.message)) return [];
+    if (error instanceof UsageError && error.message.startsWith("git ")) return [];
+    throw error;
+  }
+}
+
+/* ---------- Commands ---------- */
+
+function checkOptions(args: Args): CheckOptions {
+  const drop = flag(args, "max-health-drop");
+  if (drop !== undefined && !Number.isFinite(Number(drop))) throw new UsageError("--max-health-drop must be a number.");
+  return {
+    failOnNewCycles: !args.flags.has("no-fail-on-cycles"),
+    failOnNewViolations: !args.flags.has("no-fail-on-violations"),
+    maxHealthDrop: drop === undefined ? undefined : Number(drop),
+  };
+}
+
+function emit(args: Args, text: string): void {
+  const output = flag(args, "output");
+  if (output) writeFileSync(output, text);
+  else process.stdout.write(text);
+}
+
+function runAnalyze(args: Args): number {
+  const dir = resolve(args.positional[0] ?? ".");
+  if (!existsSync(dir)) throw new UsageError(`Directory not found: ${dir}`);
+  const files = sourceFilesInDir(dir);
+  if (files.length === 0) throw new UsageError(`No supported source files found in ${dir}.`);
+
+  const rulesPath = flag(args, "rules") ?? join(dir, CONFIG_FILE);
+  const snapshot = takeSnapshot(buildHeuristicGraph(basename(dir), files, { maxFiles: MAX_MAPPED_FILES }), rulesFromFile(rulesPath));
+  const errors = snapshot.violations.filter((v) => v.severity === "error");
+
+  if (flag(args, "format") === "json") {
+    emit(args, `${JSON.stringify({ health: { grade: snapshot.health.grade, score: snapshot.health.overall, counts: snapshot.health.counts }, issues: snapshot.health.issues.map(({ kind, severity, title, detail }) => ({ kind, severity, title, detail })), violations: snapshot.violations }, null, 2)}\n`);
+  } else {
+    emit(args, renderAnalysis(snapshot, basename(dir)));
+  }
+  return errors.length > 0 && !args.flags.has("no-fail") ? 1 : 0;
+}
+
+function runPr(args: Args): number {
+  const base = flag(args, "base");
+  if (!base) throw new UsageError("pr needs --base <ref>, e.g. --base origin/main");
+  const head = flag(args, "head") ?? "HEAD";
+  const cwd = resolve(flag(args, "dir") ?? args.positional[0] ?? ".");
+  if (!isGitRepo(cwd)) throw new UsageError(`${cwd} is not inside a git repository.`);
+
+  let changed: string[];
+  try {
+    changed = git(cwd, ["diff", "--name-only", "-z", `${base}...${head}`]).toString("utf8").split("\0").filter(Boolean);
+  } catch {
+    changed = git(cwd, ["diff", "--name-only", "-z", base, head]).toString("utf8").split("\0").filter(Boolean); // no merge base
+  }
+
+  const name = basename(cwd);
+  const headFiles = sourceFilesAtRef(cwd, head);
+  const baseFiles = sourceFilesAtRef(cwd, base);
+  if (headFiles.length === 0) throw new UsageError(`No supported source files found at ${head}.`);
+
+  // Rules come from the head commit, so a PR can change the rules and be judged by its own.
+  const rules = flag(args, "rules") ? rulesFromFile(flag(args, "rules")!) : rulesAtRef(cwd, head);
+  const options = { maxFiles: MAX_MAPPED_FILES };
+  const headSnap = takeSnapshot(buildHeuristicGraph(name, headFiles, options), rules);
+  const baseSnap = baseFiles.length ? takeSnapshot(buildHeuristicGraph(name, baseFiles, options), rules) : null;
+
+  const comparison = compareSnapshots(baseSnap, headSnap, changed);
+  const check = evaluateCheck(comparison, checkOptions(args));
+  emit(args, flag(args, "format") === "json" ? `${JSON.stringify(comparisonToJson(comparison, check), null, 2)}\n` : renderMarkdown(comparison, check));
+  if (!check.passed) process.stderr.write(`Architecture check failed: ${check.failures.join("; ")}\n`);
+  return check.passed ? 0 : 1;
+}
+
+const HELP = `CodeArchitect: architecture health, rules and PR blast radius
+
+Usage
+  codearchitect analyze [dir] [--rules file] [--format markdown|json] [--output file] [--no-fail]
+  codearchitect pr --base <ref> [--head <ref>] [--dir path] [--rules file]
+                   [--format markdown|json] [--output file]
+                   [--max-health-drop N] [--no-fail-on-cycles] [--no-fail-on-violations]
+
+Rules live in ${CONFIG_FILE} (an array, or {"rules": [...]}). Exit code is 1 when the check fails.
+`;
+
+function main(): number {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.command === "help" || args.flags.has("help")) {
+    process.stdout.write(HELP);
+    return 0;
+  }
+  if (args.command === "analyze") return runAnalyze(args);
+  if (args.command === "pr") return runPr(args);
+  throw new UsageError(`Unknown command "${args.command}".\n\n${HELP}`);
+}
+
+try {
+  process.exitCode = main();
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exitCode = 2;
+}
