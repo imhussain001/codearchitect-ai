@@ -1,0 +1,65 @@
+name: Architecture check
+
+# Compares each pull request with its base branch: new circular dependencies,
+# broken architecture rules (.codearchitect.json) and the blast radius of the
+# change. Posts one comment that is updated on every push, and fails the check
+# when the change introduces a new cycle or breaks an error-level rule.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: architecture-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  architecture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the check reads both the base and the head commit from git
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check the architecture
+        id: check
+        continue-on-error: true # report first, fail afterwards
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npm run cli --silent -- pr --base "origin/$BASE_REF" --head HEAD --output architecture-report.md
+
+      - name: Show the report in the job summary
+        if: always() && hashFiles('architecture-report.md') != ''
+        run: cat architecture-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Fork PRs get a read-only token, so only same-repo PRs can be commented on.
+      - name: Create or update the pull request comment
+        if: always() && hashFiles('architecture-report.md') != '' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- codearchitect-report -->'
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq "[.[] | select(.body | contains(\"$marker\"))][0].id // empty" | head -n 1)
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@architecture-report.md > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --body-file architecture-report.md
+          fi
+
+      - name: Fail if the check failed
+        if: steps.check.outcome == 'failure'
+        run: |
+          echo "The architecture check failed. See the report above or the pull request comment."
+          exit 1
