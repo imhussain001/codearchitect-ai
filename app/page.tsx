@@ -14,6 +14,7 @@ import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
 import { fetchEngine, requestImpact, requestRepoFromFiles, requestRepoFromGithub, requestScaffold, requestStory } from "@/lib/apiClient";
 import { analyzeHealth } from "@/lib/engines/health";
+import { evaluateRules } from "@/lib/engines/rules";
 import { commitsFromGitLog } from "@/lib/engines/story";
 import { kebabCase } from "@/lib/engines/localScaffold";
 import { findSample, SAMPLE_PROMPTS, SAMPLE_REPOSITORIES } from "@/lib/mockData";
@@ -73,11 +74,12 @@ export default function Page() {
 
   /* ---------- Derived canvas model ---------- */
   const healthReport = useMemo(() => analyzeHealth(graph), [graph]);
+  const violations = useMemo(() => evaluateRules(graph), [graph]);
   const isHealthView = state.activeTab === "health";
   const focusNodeId = state.focusEnabled ? state.selectedNodeId : null;
   const { nodes, edges } = useMemo(
-    () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story, health: isHealthView ? healthReport : null, focusNodeId, selectedNodeId: state.selectedNodeId }),
-    [graph, state.impact.result, state.story, isHealthView, healthReport, focusNodeId, state.selectedNodeId],
+    () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story, health: isHealthView ? healthReport : null, focusNodeId, selectedNodeId: state.selectedNodeId, violations: isHealthView ? violations : [] }),
+    [graph, state.impact.result, state.story, isHealthView, healthReport, focusNodeId, state.selectedNodeId, violations],
   );
 
   /** Select a component and pan/zoom the canvas to it. */
@@ -365,6 +367,7 @@ export default function Page() {
             dispatch={dispatch}
             samplePrompts={SAMPLE_PROMPTS[graph.id] ?? []}
             healthReport={healthReport}
+            violations={violations}
             onSelectAndCenter={selectAndCenter}
             onRunImpact={() => void runImpact()}
             onSimulate={simulateFrom}

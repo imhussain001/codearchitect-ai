@@ -4,6 +4,7 @@ import { applyNodeChanges, type NodeChange } from "@xyflow/react";
 import { useReducer } from "react";
 import { findSample, DEFAULT_REPOSITORY_ID } from "@/lib/mockData";
 import type {
+  ArchRule,
   ArchitectureGraph,
   ArchNode,
   CommitSnapshot,
@@ -35,6 +36,7 @@ export type WorkspaceAction =
   | { type: "nodesChanged"; changes: NodeChange<ArchNode>[] }
   | { type: "selectNode"; nodeId: string | null }
   | { type: "toggleFocus" }
+  | { type: "setRules"; rules: ArchRule[] }
   | { type: "setTab"; tab: InspectorTab }
   | { type: "setImpactPrompt"; prompt: string }
   | { type: "impactStarted" }
@@ -101,6 +103,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, selectedNodeId: action.nodeId };
     case "toggleFocus":
       return { ...state, focusEnabled: !state.focusEnabled };
+    case "setRules":
+      return withGraph(state, { rules: action.rules });
     case "setTab":
       return { ...state, activeTab: action.tab };
     case "setImpactPrompt":

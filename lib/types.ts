@@ -64,6 +64,8 @@ export type RenderNodeData = NodeData & {
   heat?: { level: HealthLevel; score: number };
   /** True when focus mode is on and this node is outside the focused neighbourhood. */
   dimmed?: boolean;
+  /** Number of architecture-rule violations involving this node (shown in the Health view). */
+  violations?: number;
 };
 
 export type ArchNode = Node<NodeData, "component">;
@@ -82,6 +84,8 @@ export type DependencyEdge = {
   relation: EdgeRelation;
   label?: string;
   isDraft?: boolean;
+  /** Only `import type`: erased at runtime. Health ignores it; blast radius and rules still count it. */
+  typeOnly?: boolean;
 };
 
 export type EdgeRenderData = {
@@ -90,6 +94,8 @@ export type EdgeRenderData = {
   isDraft: boolean;
   /** Part of a circular dependency (Health overlay). */
   isCycle: boolean;
+  /** Breaks an architecture rule (Health overlay). */
+  isViolation: boolean;
 };
 export type RenderEdge = Edge<EdgeRenderData>;
 
@@ -152,6 +158,27 @@ export type ImpactScenario = {
   diffs: Array<{ nodeId: string; after: string; rationale: string }>;
 };
 
+export type RuleSeverity = "error" | "warn";
+
+/**
+ * An architecture constraint. Selectors are `|`-separated alternatives of `kind:<layer>`,
+ * `path:<glob>`, `id:<node id>`, `label:<glob>`, or `*`; a bare word matches a label or a path.
+ */
+export type ArchRule =
+  | { id: string; type: "forbid"; from: string; to: string; message?: string; severity?: RuleSeverity }
+  | { id: string; type: "no-cycles"; message?: string; severity?: RuleSeverity }
+  | { id: string; type: "max-dependents"; limit: number; selector?: string; message?: string; severity?: RuleSeverity }
+  | { id: string; type: "max-lines"; limit: number; selector?: string; message?: string; severity?: RuleSeverity };
+
+export type RuleViolation = {
+  ruleId: string;
+  severity: RuleSeverity;
+  message: string;
+  nodeIds: string[];
+  /** Edges that break the rule (forbidden dependencies, cycle edges); empty for node-level rules. */
+  edgeIds: string[];
+};
+
 export type ArchitectureGraph = {
   id: string;
   name: string;
@@ -160,6 +187,8 @@ export type ArchitectureGraph = {
   edges: DependencyEdge[];
   commits: CommitSnapshot[];
   scenarios: ImpactScenario[];
+  /** Constraints this architecture must satisfy; evaluated by `evaluateRules`. */
+  rules?: ArchRule[];
   /** Overrides for the four layer names, e.g. MATLAB graphs call `data` "Data files". */
   kindLabels?: Partial<Record<NodeKind, string>>;
   /** Notes produced during ingestion (skipped files, truncation, heuristics used). */

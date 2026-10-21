@@ -70,6 +70,15 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<RenderNode>) {
     >
       <Handle type="target" position={Position.Top} />
 
+      {data.violations ? (
+        <span
+          className="absolute -right-2 -top-2 z-10 rounded-full bg-orange-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow"
+          title={`${data.violations} architecture rule violation${data.violations === 1 ? "" : "s"} involve this component`}
+        >
+          ✕ {data.violations}
+        </span>
+      ) : null}
+
       <div className="flex items-start gap-2 px-3 pt-2.5">
         <div className={clsx("mt-0.5 rounded-md bg-zinc-800/80 p-1.5", kind.text)}>
           <Icon className="h-4 w-4" />

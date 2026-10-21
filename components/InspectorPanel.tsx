@@ -10,7 +10,7 @@ import { NodeInspector } from "@/components/inspector/NodeInspector";
 import { StoryPanel } from "@/components/inspector/StoryPanel";
 import type { InspectorTab, WorkspaceAction, WorkspaceState } from "@/hooks/useWorkspace";
 import type { HealthReport } from "@/lib/engines/health";
-import type { NodeKind } from "@/lib/types";
+import type { NodeKind, RuleViolation } from "@/lib/types";
 
 const TABS: Array<{ id: InspectorTab; label: string; hint: string; icon: LucideIcon }> = [
   { id: "inspector", label: "Inspector", hint: "Code and details of the selected component", icon: FileSearch },
@@ -25,6 +25,7 @@ type Props = {
   dispatch: Dispatch<WorkspaceAction>;
   samplePrompts: string[];
   healthReport: HealthReport;
+  violations: RuleViolation[];
   /** Select a component and pan/zoom the canvas to it. */
   onSelectAndCenter: (nodeId: string) => void;
   onRunImpact: () => void;
@@ -35,7 +36,7 @@ type Props = {
   onGenerateScaffold: () => void;
 };
 
-export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, onSelectAndCenter, ...handlers }: Props) {
+export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, violations, onSelectAndCenter, ...handlers }: Props) {
   const { graph, activeTab, selectedNodeId } = state;
   const selectedNode = graph.nodes.find((n) => n.id === selectedNodeId);
 
@@ -63,6 +64,7 @@ export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, o
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className={clsx("truncate", activeTab === id ? "inline" : "hidden @[34rem]:inline")}>{label}</span>
             {id === "blast" && state.impact.result && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+            {id === "health" && violations.some((v) => v.severity === "error") && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />}
             {id === "builder" && graph.nodes.some((n) => n.data.isDraft) && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-fuchsia-500" />}
           </button>
         ))}
@@ -88,7 +90,17 @@ export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, o
             onSelectNode={onSelectAndCenter}
           />
         )}
-        {activeTab === "health" && <HealthPanel graph={graph} report={healthReport} selectedNodeId={selectedNodeId} onSelectNode={onSelectAndCenter} />}
+        {activeTab === "health" && (
+          <HealthPanel
+            graph={graph}
+            report={healthReport}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={onSelectAndCenter}
+            rules={graph.rules}
+            violations={violations}
+            onSetRules={(rules) => dispatch({ type: "setRules", rules })}
+          />
+        )}
         {activeTab === "story" && (
           <StoryPanel
             graph={graph}
