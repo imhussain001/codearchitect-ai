@@ -71,7 +71,8 @@ describe("evaluateCheck", () => {
   it("fails on new cycles and new error-severity violations by default", () => {
     const result = evaluateCheck(c);
     expect(result.passed).toBe(false);
-    expect(result.failures).toEqual(["1 new circular dependency", "2 new architecture rule violations"]);
+    // The no-cycles rule describes the same loop as the cycle, so it is not counted twice.
+    expect(result.failures).toEqual(["1 new circular dependency", "1 new architecture rule violation"]);
   });
 
   it("can be relaxed, and enforces an optional health-drop limit", () => {
@@ -94,10 +95,12 @@ describe("renderMarkdown", () => {
     const c = compareSnapshots(base, head, changed);
     const md = renderMarkdown(c, evaluateCheck(c));
     expect(md.startsWith(REPORT_MARKER)).toBe(true);
-    expect(md).toContain("❌ Architecture check: 1 new circular dependency, 2 new architecture rule violations");
+    expect(md).toContain("❌ Architecture check: 1 new circular dependency, 1 new architecture rule violation");
     expect(md).toMatch(/\| Circular dependencies \| 0 \| 1 \(\+1\) \|/);
     expect(md).toMatch(/\| Health grade \| A · 100 \|/);
-    expect(md).toContain("### New problems (3)");
+    expect(md).toContain("### New problems (2)");
+    expect(md).toMatch(/\| Rule violations \| 0 \| 1 \(\+1\) \|/);
+    expect(md).not.toContain("Rule `no-cycles`");
     expect(md).toContain("Rule `ui-not-logic`");
     expect(md).toMatch(/touches \*\*2\*\* components/);
     expect(md).toMatch(/\*\*3\*\* other components depend on them \(1 directly, 2 indirectly\)/);

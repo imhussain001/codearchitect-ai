@@ -120,6 +120,17 @@ export type CheckOptions = {
 
 export type CheckResult = { passed: boolean; failures: string[] };
 
+/** A `no-cycles` rule violation describes the same loop as the health check's cycle issue. */
+function cycleKeyOf(nodeIds: readonly string[]): string {
+  return `cycle:${[...nodeIds].sort().join(",")}`;
+}
+
+/** New rule violations excluding `no-cycles` ones already reported as a health cycle (so nothing is counted twice). */
+function distinctNewViolations(c: Comparison): RuleViolation[] {
+  const newCycles = new Set(c.newIssues.filter((i) => i.kind === "cycle").map((i) => healthIssueKey(i)));
+  return c.newViolations.filter((v) => !(v.ruleType === "no-cycles" && newCycles.has(cycleKeyOf(v.nodeIds))));
+}
+
 export function evaluateCheck(c: Comparison, options: CheckOptions = {}): CheckResult {
   const { failOnNewCycles = true, failOnNewViolations = true, maxHealthDrop } = options;
   const failures: string[] = [];
@@ -127,7 +138,7 @@ export function evaluateCheck(c: Comparison, options: CheckOptions = {}): CheckR
   const cycles = c.newIssues.filter((i) => i.kind === "cycle");
   if (failOnNewCycles && cycles.length) failures.push(`${cycles.length} new circular ${cycles.length === 1 ? "dependency" : "dependencies"}`);
 
-  const errors = c.newViolations.filter((v) => v.severity === "error");
+  const errors = (failOnNewCycles ? distinctNewViolations(c) : c.newViolations).filter((v) => v.severity === "error");
   if (failOnNewViolations && errors.length) failures.push(`${errors.length} new architecture rule ${errors.length === 1 ? "violation" : "violations"}`);
 
   if (maxHealthDrop !== undefined && -c.scoreDelta > maxHealthDrop) failures.push(`health score dropped by ${-c.scoreDelta} (limit ${maxHealthDrop})`);
@@ -168,6 +179,8 @@ function listWithMore(items: readonly string[], max = MAX_LISTED): string[] {
   return items.length <= max ? [...items] : [...items.slice(0, max), `…and ${items.length - max} more`];
 }
 
+const ruleCount = (s: Snapshot) => s.violations.filter((v) => v.ruleType !== "no-cycles").length;
+
 export function renderMarkdown(c: Comparison, check: CheckResult): string {
   const label = (id: string) => nodeById(c.head.graph.nodes, id)?.data.label ?? id;
   const { head, base } = c;
@@ -179,13 +192,15 @@ export function renderMarkdown(c: Comparison, check: CheckResult): string {
   const rows = [
     ["Health grade", base ? `${base.health.grade} · ${base.health.overall}` : "n/a", `${head.health.grade} · ${head.health.overall}${base ? ` (${signed(c.scoreDelta)})` : ""}`],
     ["Circular dependencies", base ? String(base.health.counts.cycles) : "n/a", `${cyclesNow}${base ? ` (${signed(cyclesNow - base.health.counts.cycles)})` : ""}`],
-    ["Rule violations", base ? String(base.violations.length) : "n/a", `${head.violations.length}${base ? ` (${signed(head.violations.length - base.violations.length)})` : ""}`],
+    // Loops are counted in the row above, so a `no-cycles` rule does not count them a second time.
+    ["Rule violations", base ? String(ruleCount(base)) : "n/a", `${ruleCount(head)}${base ? ` (${signed(ruleCount(head) - ruleCount(base))})` : ""}`],
   ];
   lines.push("| | Base | This PR |", "|---|---|---|", ...rows.map((r) => `| ${r.map(escapeCell).join(" | ")} |`), "");
 
-  if (c.newViolations.length || c.newIssues.length) {
-    lines.push(`### New problems (${c.newViolations.length + c.newIssues.length})`);
-    for (const v of listWithMore(c.newViolations.map((v) => `- ${v.severity === "error" ? "🟠" : "🟡"} **Rule \`${v.ruleId}\`**: ${escapeCell(v.message)}`))) lines.push(v);
+  const shownViolations = distinctNewViolations(c);
+  if (shownViolations.length || c.newIssues.length) {
+    lines.push(`### New problems (${shownViolations.length + c.newIssues.length})`);
+    for (const v of listWithMore(shownViolations.map((v) => `- ${v.severity === "error" ? "🟠" : "🟡"} **Rule \`${v.ruleId}\`**: ${escapeCell(v.message)}`))) lines.push(v);
     for (const i of listWithMore(c.newIssues.map((i) => `- ${i.severity === "high" ? "🔴" : i.severity === "medium" ? "🟠" : "🟡"} **${escapeCell(i.title)}**: ${escapeCell(i.detail)}`))) lines.push(i);
     lines.push("");
   }

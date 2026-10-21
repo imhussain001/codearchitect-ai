@@ -75,7 +75,7 @@ export function evaluateRules(graph: ArchitectureGraph, rules: readonly ArchRule
         const to = nodeById(nodes, edge.target)!;
         if (!matchesSelector(from, rule.from) || !matchesSelector(to, rule.to)) continue;
         violations.push({
-          ruleId: rule.id,
+          ruleId: rule.id, ruleType: rule.type,
           severity,
           message: `${rule.message ?? "Forbidden dependency"}: ${label(edge.source)} → ${label(edge.target)}`,
           nodeIds: [edge.source, edge.target],
@@ -86,7 +86,7 @@ export function evaluateRules(graph: ArchitectureGraph, rules: readonly ArchRule
       for (const group of findCycles([...ids], edges)) {
         const inGroup = new Set(group);
         violations.push({
-          ruleId: rule.id,
+          ruleId: rule.id, ruleType: rule.type,
           severity,
           message: `${rule.message ?? "Circular dependency"}: ${group.map(label).join(" ↔ ")}`,
           nodeIds: group,
@@ -99,7 +99,7 @@ export function evaluateRules(graph: ArchitectureGraph, rules: readonly ArchRule
         const dependents = new Set(edges.filter((e) => e.target === node.id).map((e) => e.source));
         if (dependents.size > rule.limit) {
           violations.push({
-            ruleId: rule.id,
+            ruleId: rule.id, ruleType: rule.type,
             severity,
             message: `${rule.message ?? "Too many dependents"}: ${node.data.label} has ${dependents.size} (limit ${rule.limit})`,
             nodeIds: [node.id],
@@ -113,7 +113,7 @@ export function evaluateRules(graph: ArchitectureGraph, rules: readonly ArchRule
         const lines = lineCountOf(node);
         if (lines > rule.limit) {
           violations.push({
-            ruleId: rule.id,
+            ruleId: rule.id, ruleType: rule.type,
             severity,
             message: `${rule.message ?? "File too large"}: ${node.data.label} has ${lines.toLocaleString()} lines (limit ${rule.limit.toLocaleString()})`,
             nodeIds: [node.id],

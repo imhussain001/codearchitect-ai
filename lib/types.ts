@@ -172,6 +172,7 @@ export type ArchRule =
 
 export type RuleViolation = {
   ruleId: string;
+  ruleType: ArchRule["type"];
   severity: RuleSeverity;
   message: string;
   nodeIds: string[];
