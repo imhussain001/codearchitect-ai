@@ -15,6 +15,8 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | ⏳ | **Time-machine story** | Replay commit history on the canvas: components appear as they were introduced, with a narrative for each phase. Paste any `git log --name-status` to build a timeline. |
 | 🧩 | **Diagram-to-code builder** | Add components, drag connections between them, and generate the new files plus the edits that wire them into existing ones. |
 | 🩺 | **Architecture health** | An A–F grade and a change-risk score per component from structure alone (no AI): circular dependencies, hubs, crossed layers, oversized files. The canvas shows a ring and a "Risk N" chip on every component. |
+| 🛡️ | **Architecture rules** | State what must never happen ("the UI must not touch the database", "no cycles", "no component with more than 6 dependents"). Broken rules are drawn on the map and listed in the Health tab. |
+| 🤖 | **Pull-request check** | `codearchitect pr --base main` (or the bundled GitHub workflow) reports what a change does to the architecture: new cycles, broken rules, health change and blast radius. It comments on the PR and fails the check on new problems. |
 | 🔎 | **Search & focus** | Find a component by name, path or symbol and jump to it. Focus mode dims everything except the selected component and its direct neighbours. |
 | 🎓 | **Easy to understand** | A guided tour on first visit, "In plain words" summaries of every component and analysis (with an effort estimate and order of work), tooltips and a glossary. |
 | 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write. |
@@ -60,6 +62,8 @@ Shortcuts are ignored while you type in a field.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests (Vitest) |
 | `npm run graph:self` | Regenerate `public/samples/codearchitect-self.graph.json` from the current code and git history |
+| `npm run cli -- analyze .` | Health and rule report for a folder (builds the CLI first) |
+| `npm run cli -- pr --base main` | Architecture check of the current branch against `main`; exit code 1 when it fails |
 | `npm run models` | List the model IDs each configured provider actually serves (helps pick `AI_MODEL`) |
 | `npm run test:live` | Score real models on every AI feature (opt-in, makes paid/free-tier API calls; see the development guide) |
 
@@ -124,6 +128,7 @@ flowchart LR
 | [Architecture](docs/architecture.md) | Layers, data flow, state model, key design decisions |
 | [API reference](docs/api.md) | Every route: request, response, errors, limits |
 | [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, health scoring, script data-flow, search ranking, diff, repo mapping, git parsing, scaffolding |
+| [Rules, CLI and CI](docs/cli-and-ci.md) | Writing rules, the `analyze` and `pr` commands, exit codes, and the GitHub workflow |
 | [Graph format](docs/graph-format.md) | The `codearchitect/v1` JSON manifest, for building your own graphs |
 | [Development guide](docs/development.md) | Project layout, testing, adding samples and scenarios, Next.js 16 notes |
 
@@ -135,3 +140,4 @@ flowchart LR
 - Graph state is not persisted between page reloads. Export the graph to keep it.
 - Script mapping reads string literals: file names built at run time (`[name '_base.csv']`) appear as patterns, files passed through variables to a helper function are linked to the script that names them rather than to the helper, and nothing is executed. Data file contents are never read.
 - Health scores are structural heuristics for deciding where to look first, not a verdict on code quality.
+- The PR check maps source files and their imports. It cannot see dynamic imports with computed paths or runtime-injected dependencies, and a renamed file shows as one removed and one added component.

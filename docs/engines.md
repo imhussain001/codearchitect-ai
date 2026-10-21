@@ -29,13 +29,29 @@ Tests: `tests/health.test.ts`. Pure; draft nodes and edges from the builder are 
 | Crossed layer | An edge from a `frontend` node to a `data` node, or from `data` to `frontend`/`api` | medium |
 | Hub | At least 4 direct dependents and at least 25% of the other components | medium |
 | Large file | ≥ 400 lines (low), ≥ 800 lines (medium); uses `lineCount`, since `code` may be truncated | low / medium |
-| Unconnected | No edges at all in a graph of more than one component | low |
+| Unconnected | No edges at all in a graph of more than one component, unless it looks like an entry point (Next.js `layout`/`page`/`route`, `main`/`index`, `*.config.*`, or anything under `scripts/`, `bin/`, `cli/`) | low |
+
+**Type-only imports.** The mapper marks an edge `typeOnly` when a file imports a module only through `import type` / `export type` (a value import of the same module wins). Health ignores these edges for hubs, fan-in, cycles and crossed layers, because they are erased at runtime; a type-only module still counts as connected. Blast radius and rules keep them, since changing a type breaks its users at compile time. On this repo that removed a false "Types is a hub (40 dependents)" and lifted the grade from B to A.
 
 **Change-risk per component** (0–100): 8 per direct dependent (cap 40) + 3 per dependency (cap 15) + 1 per 20 lines (cap 20) + 30 if in a cycle + 15 if it crosses layers. Bands: healthy < 35, watch 35–64, risky ≥ 65.
 
 **Overall** = 100 − (12 × cycles + 8 × crossed layers + 5 × hubs + 4 × large files + 2 × unconnected), floored at 0. Grades: A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, else F.
 
 The weights are named constants at the top of the file. They are heuristics for ranking where to look first, not calibrated probabilities.
+
+## Architecture rules (`lib/engines/rules.ts`)
+
+Tests: `tests/rules.test.ts`. `evaluateRules(graph, rules?)` returns one `RuleViolation` per breach: `forbid` per offending edge (the edge is drawn dashed orange), `no-cycles` per loop (every edge inside it), `max-dependents` and `max-lines` per component. A selector is `|`-joined alternatives of `kind:`, `path:` (glob), `label:` (glob), `id:` or `*`; globs treat `**` as any depth. `violationKey` gives each violation a stable identity so a PR check can tell new from existing. Syntax and examples: [cli-and-ci.md](cli-and-ci.md#rules).
+
+## Pull-request report (`lib/report.ts`)
+
+Tests: `tests/report.test.ts`. A `Snapshot` is a graph plus its health report and violations. `compareSnapshots(base, head, changedFiles)`:
+
+1. **New and fixed problems:** issues and violations are matched by stable keys (a cycle by its sorted member ids, others by id), so only genuinely new ones are reported.
+2. **Blast radius:** each changed file maps to a component in the head graph (path-suffix match); a reverse BFS over the head's edges gives direct (1 hop) and indirect (2+ hops) dependents. Files that no longer exist are looked up in the base graph, and survivors that still depend on them are flagged. Unmappable files (docs, config) are listed separately.
+3. **Check:** fails on a new cycle and on a new `error`-severity violation by default, optionally on a health drop. A `no-cycles` violation that matches a new cycle is folded into it so one loop is counted once.
+
+`renderMarkdown` produces the PR comment, led by a hidden marker so a bot can update its own comment; `comparisonToJson` gives a compact machine-readable form.
 
 ## Search ranking (`lib/search.ts`)
 
