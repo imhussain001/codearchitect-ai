@@ -22,7 +22,7 @@ export const SEVERITY_META: Record<ImpactSeverity, { label: string; chip: string
   impacted: { label: "Review", chip: "bg-amber-500/15 text-amber-300 ring-amber-500/40" },
 };
 
-export const EDGE_COLORS = { default: "#52525b", impact: "#ef4444", draft: "#d946ef", cycle: "#f43f5e" } as const;
+export const EDGE_COLORS = { default: "#52525b", impact: "#ef4444", draft: "#d946ef", cycle: "#f43f5e", violation: "#fb923c" } as const;
 
 /** Health-overlay styling: a coloured ring plus a "Risk N" chip. */
 export const HEALTH_META: Record<HealthLevel, { label: string; ring: string; chip: string; hex: string; text: string }> = {

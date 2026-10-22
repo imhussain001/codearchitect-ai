@@ -54,6 +54,10 @@ const COMPONENTS = [
   ["scripts-engine", "Script Mapper (MATLAB/Python)", "logic", "lib/engines/scripts.ts", "Lexer plus data-flow mapping: which script calls which function and which data files it reads and writes.", ["matlab", "python", "script", "csv", "data", "lexer", "dataflow"], [{ name: "files", type: "SourceFile[]" }]],
   ["explain", "Plain-language Explainer", "logic", "lib/explain.ts", "Turns the graph and impact results into everyday sentences, an effort estimate and an order of work.", ["explain", "plain", "effort", "glossary"], [{ name: "result", type: "ImpactAnalysisResult" }]],
   ["search-lib", "Search Ranking", "logic", "lib/search.ts", "AND-of-words ranking over name, path, export, keyword and description.", ["search", "rank", "find"], [{ name: "query", type: "string" }]],
+  ["rules-engine", "Rules Engine", "logic", "lib/engines/rules.ts", "Evaluates forbid / no-cycles / max-dependents / max-lines rules with glob selectors; gives violations stable keys.", ["rules", "violation", "forbid", "selector", "glob", "constraint"], [{ name: "rules", type: "ArchRule[]" }]],
+  ["rules-schema", "Rules Schema (zod)", "logic", "lib/rulesSchema.ts", "Shared validation for rules, with errors phrased by rule number and field.", ["rules", "schema", "zod", "validation"], [{ name: "text", type: "string" }]],
+  ["report", "PR Report", "logic", "lib/report.ts", "Compares two snapshots: new/fixed problems, blast radius of changed files, pass/fail, and the Markdown comment.", ["report", "pr", "compare", "blast", "markdown", "check"], [{ name: "changedFiles", type: "string[]" }]],
+  ["cli", "CodeArchitect CLI", "api", "scripts/cli/main.ts", "analyze and pr commands; reads commits straight from git and exits non-zero when the check fails.", ["cli", "command", "git", "analyze", "pr", "exit"], [{ name: "argv", type: "string[]" }]],
   ["tour-lib", "Tour Steps", "logic", "lib/tour.ts", "The tour script plus localStorage-safe seen flag.", ["tour", "steps", "storage"], []],
 
   // ---- Server-side logic
@@ -141,6 +145,7 @@ const ROWS = [
   ["portability", "api-client", "workspace-store", "view-model", "line-diff"],
   ["heuristic-graph", "zip-reader", "story-engine", "impact-engine", "scaffold-engine", "graph-core", "graph-schema"],
   ["health-engine", "scripts-engine", "explain", "search-lib", "tour-lib"],
+  ["rules-engine", "rules-schema", "report", "cli"],
   ["github-fetch", "respond", "analyzers", "server-schemas", "sample-repos"],
   ["ai-json", "ai-gateway", "ai-config", "anthropic-adapter", "openai-adapter"],
 ];
@@ -245,6 +250,12 @@ const NARRATIVES = {
   "feat(health):": ["Phase 9a · Architecture health", "A structural scorecard with no AI: change-risk per component, circular dependencies, hubs, crossed layers and oversized files, shown as rings and chips on the canvas."],
   "feat(search):": ["Phase 9b · Search and focus", "Find a component by name, path or symbol and jump to it; focus mode dims everything but its neighbours so large maps stay readable."],
   "feat(guide):": ["Phase 9c · Approachability", "Plain-language summaries, effort estimates and a spotlight tour make the vocabulary and controls understandable without prior knowledge."],
+  "feat(rules):": ["Architecture rules", "Constraints such as 'the UI must not touch the database' become checkable: violations are listed in the Health tab and drawn on the map."],
+  "fix(health):": ["Cleaning the signal", "Mapping this repo exposed noise: a types file flagged as a hub and entry points flagged as unconnected. Type-only imports and entry points are now understood, lifting this repo from B to A."],
+  "feat(report):": ["PR comparison", "Two architectures are compared to find new and fixed problems and the blast radius of the changed files, rendered as a Markdown report."],
+  "fix(report):": ["Counting once", "A single loop was reported as both a cycle and a rule violation; it is now counted once."],
+  "feat(cli):": ["Command line", "analyze and pr commands bundled into one file, reading commits straight from git."],
+  "ci:": ["Automation", "A GitHub workflow runs the check on every pull request, comments the result and fails on new problems."],
   "feat(scripts):": ["Phase 9d · Research code", "MATLAB and Python scripts become data-flow maps: entry scripts, helper functions, and the data files they read and write."],
   "chore(samples):": ["Refreshing the map", "The map of this repository is rebuilt from the current code and git history so it never goes stale."],
   "docs:": ["Phase 8 · Documentation", "README plus architecture, API, engine, format and development guides — no component code changes."],

@@ -40,3 +40,28 @@ describe("buildHeuristicGraph", () => {
     expect(extractExports({ path: "a.py", content: "def run():\n  pass\ndef _private():\n  pass\nclass Repo:\n  pass" })).toEqual(["run", "Repo"]);
   });
 });
+
+describe("type-only imports", () => {
+  const edgesOf = (files: Array<{ path: string; content: string }>) => buildHeuristicGraph("t", files).edges;
+  const target = { path: "src/types.ts", content: "export type A = 1;" };
+
+  it("marks an import type as type-only and keeps value imports as runtime coupling", () => {
+    const typedSource = ['import type { A } from "./types";', "export const x = 1;"].join("\n");
+    const [typed] = edgesOf([{ path: "src/a.ts", content: typedSource }, target]);
+    expect(typed).toMatchObject({ relation: "imports", typeOnly: true });
+
+    const [valued] = edgesOf([{ path: "src/a.ts", content: 'import { A } from "./types";' }, target]);
+    expect(valued!.typeOnly).toBeUndefined();
+  });
+
+  it("treats a module as runtime-coupled when it is also imported by value", () => {
+    const mixedSource = ['import type { A } from "./types";', 'import { b } from "./types";'].join("\n");
+    const [mixed] = edgesOf([{ path: "src/a.ts", content: mixedSource }, target]);
+    expect(mixed!.typeOnly).toBeUndefined();
+  });
+
+  it("handles re-exported types", () => {
+    const [reexport] = edgesOf([{ path: "src/a.ts", content: 'export type { A } from "./types";' }, target]);
+    expect(reexport!.typeOnly).toBe(true);
+  });
+});

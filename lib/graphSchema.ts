@@ -1,4 +1,5 @@
 import * as z from "zod/v4";
+import { RulesSchema } from "@/lib/rulesSchema";
 
 /** Shape of an architecture graph; shared by API validation and client-side JSON import. */
 
@@ -38,6 +39,7 @@ const EdgeSchema = z.object({
   relation: z.enum(["calls", "reads", "writes", "imports", "publishes"]),
   label: shortText.optional(),
   isDraft: z.boolean().optional(),
+  typeOnly: z.boolean().optional(),
 });
 
 const CommitSchema = z.object({
@@ -69,6 +71,7 @@ export const GraphSchema = z.object({
   edges: z.array(EdgeSchema).max(MAX_EDGES),
   commits: z.array(CommitSchema).max(500),
   scenarios: z.array(ScenarioSchema).max(50),
+  rules: RulesSchema.optional(),
   kindLabels: z.record(z.enum(["frontend", "api", "logic", "data"]), z.string().max(60)).optional(),
   warnings: z.array(z.string()).optional(),
 });

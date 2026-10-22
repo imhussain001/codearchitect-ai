@@ -1,0 +1,29 @@
+{
+  "rules": [
+    {
+      "id": "engines-are-pure",
+      "type": "forbid",
+      "from": "path:lib/engines/**|path:lib/graph.ts|path:lib/diff.ts|path:lib/search.ts|path:lib/explain.ts|path:lib/report.ts",
+      "to": "path:components/**|path:app/**|path:hooks/**",
+      "message": "Analysis engines are pure; they must not depend on UI or app code"
+    },
+    {
+      "id": "engines-not-server",
+      "type": "forbid",
+      "from": "path:lib/engines/**|path:lib/graph.ts|path:lib/diff.ts|path:lib/report.ts",
+      "to": "path:lib/server/**",
+      "message": "Engines run in the browser too; they must not import server-only code"
+    },
+    {
+      "id": "ui-not-server",
+      "type": "forbid",
+      "from": "path:components/**|path:hooks/**|path:app/page.tsx",
+      "to": "path:lib/server/**",
+      "message": "Browser code must not import server-only modules"
+    },
+    {
+      "id": "no-cycles",
+      "type": "no-cycles"
+    }
+  ]
+}

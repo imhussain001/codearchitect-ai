@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeHealth, findCycles, riskiestNodes } from "@/lib/engines/health";
+import { analyzeHealth, findCycles, isLikelyEntryPoint, riskiestNodes } from "@/lib/engines/health";
 import { authMicroservice, ecommerceApi } from "@/lib/mockData";
 import { buildRenderGraph } from "@/lib/viewModel";
 import type { ArchitectureGraph, ArchNode, DependencyEdge, NodeKind } from "@/lib/types";
@@ -125,5 +125,35 @@ describe("buildRenderGraph: health and focus", () => {
     const labels = Object.fromEntries(buildRenderGraph({ ...base, graph: g }).nodes.map((n) => [n.id, n.data.kindLabel]));
     expect(labels["users-db"]).toBe("Data files");
     expect(labels["dashboard"]).toBe("Frontend / UI");
+  });
+});
+
+describe("type-only edges and entry points", () => {
+  const typeEdge = (source: string, target: string): DependencyEdge => ({ id: `${source}-${target}`, source, target, relation: "imports", typeOnly: true });
+
+  it("does not make a hub, a cycle or a crossed layer out of type-only imports", () => {
+    const users = ["a", "b", "c", "d", "e"].map((id) => node(id));
+    const hub = analyzeHealth(graph([node("types"), ...users], users.map((u) => typeEdge(u.id, "types"))));
+    expect(hub.counts.hubs).toBe(0);
+    expect(hub.nodes["types"]!.fanIn).toBe(0);
+    expect(hub.counts.orphans).toBe(0); // still connected, just not by runtime coupling
+
+    const loop = analyzeHealth(graph([node("a"), node("b")], [edge("a", "b"), typeEdge("b", "a")]));
+    expect(loop.counts.cycles).toBe(0);
+
+    const ui = analyzeHealth(graph([node("page", "frontend"), node("db", "data")], [typeEdge("page", "db")]));
+    expect(ui.counts.layering).toBe(0);
+  });
+
+  it("recognises framework and script entry points, but still flags real orphans", () => {
+    for (const path of ["app/layout.tsx", "src/app/api/x/route.ts", "scripts/build.mjs", "scripts/cli/main.ts", "next.config.ts", "src/main.ts"]) {
+      expect(isLikelyEntryPoint(path), path).toBe(true);
+    }
+    for (const path of ["lib/util.ts", "components/Button.tsx", "src/server/auth/jwt.ts"]) expect(isLikelyEntryPoint(path), path).toBe(false);
+
+    const entry = { ...node("layout"), data: { ...node("layout").data, filePath: "app/layout.tsx" } };
+    const report = analyzeHealth(graph([node("a"), node("b"), entry, node("lonely")], [edge("a", "b")]));
+    expect(report.counts.orphans).toBe(1);
+    expect(report.issues.find((i) => i.kind === "orphan")!.nodeIds).toEqual(["lonely"]);
   });
 });

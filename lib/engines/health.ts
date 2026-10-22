@@ -22,6 +22,15 @@ const SCORE_MAX = 100;
 const WATCH_FROM = 35;
 const RISKY_FROM = 65;
 
+/** Files nothing imports by design: framework entry points, scripts and config. */
+const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
+const ENTRY_DIR = /(^|\/)(scripts?|bin|cli)\//i;
+
+export function isLikelyEntryPoint(filePath: string): boolean {
+  const path = filePath.split("\\").join("/");
+  return ENTRY_FILE.test(path) || ENTRY_DIR.test(path);
+}
+
 export type HealthIssueKind = "cycle" | "hub" | "orphan" | "large" | "layering";
 export type HealthSeverity = "high" | "medium" | "low";
 
@@ -156,7 +165,10 @@ function gradeFor(overall: number): HealthGrade {
 export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
   const nodes = graph.nodes.filter((n) => !n.data.isDraft);
   const ids = new Set(nodes.map((n) => n.id));
-  const edges = graph.edges.filter((e) => !e.isDraft && ids.has(e.source) && ids.has(e.target) && e.source !== e.target);
+  const allEdges = graph.edges.filter((e) => !e.isDraft && ids.has(e.source) && ids.has(e.target) && e.source !== e.target);
+  // Type-only imports are erased at runtime: they do not make a hub, a cycle or a crossed layer.
+  const edges = allEdges.filter((e) => !e.typeOnly);
+  const connected = new Set(allEdges.flatMap((e) => [e.source, e.target]));
   const label = (id: string) => nodeById(graph.nodes, id)?.data.label ?? id;
 
   const dependents = new Map<string, Set<string>>();
@@ -166,11 +178,11 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
     (dependencies.get(e.source) ?? dependencies.set(e.source, new Set()).get(e.source)!).add(e.target);
   }
 
-  const cycles = findCycles([...ids], graph.edges.filter((e) => !e.isDraft));
+  const cycles = findCycles([...ids], edges);
   const inCycle = new Set(cycles.flat());
   const cycleOf = new Map<string, number>();
   cycles.forEach((group, i) => group.forEach((id) => cycleOf.set(id, i)));
-  const cycleEdgeIds = graph.edges.filter((e) => !e.isDraft && cycleOf.has(e.source) && cycleOf.get(e.source) === cycleOf.get(e.target)).map((e) => e.id);
+  const cycleEdgeIds = edges.filter((e) => cycleOf.has(e.source) && cycleOf.get(e.source) === cycleOf.get(e.target)).map((e) => e.id);
 
   const issues: HealthIssue[] = [];
   const layeringNodes = new Set<string>();
@@ -208,7 +220,7 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
     const fanIn = dependents.get(node.id)?.size ?? 0;
     const fanOut = dependencies.get(node.id)?.size ?? 0;
     const lines = lineCountOf(node);
-    const isOrphan = fanIn + fanOut === 0;
+    const isOrphan = !connected.has(node.id) && !isLikelyEntryPoint(node.data.filePath);
     const cyc = inCycle.has(node.id);
     const reasons: string[] = [];
 
@@ -268,6 +280,11 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
   const penalty = counts.cycles * 12 + counts.layering * 8 + counts.hubs * 5 + counts.large * 4 + counts.orphans * 2;
   const overall = Math.max(0, SCORE_MAX - penalty);
   return { nodes: report, issues, cycleEdgeIds, overall, grade: gradeFor(overall), counts };
+}
+
+/** Stable identity of an issue across two analyses: cycles by their members, others by their (already stable) id. */
+export function healthIssueKey(issue: HealthIssue): string {
+  return issue.kind === "cycle" ? `cycle:${[...issue.nodeIds].sort().join(",")}` : issue.id;
 }
 
 /** The `limit` components most expensive to change, riskiest first. */

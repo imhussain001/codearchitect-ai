@@ -27,6 +27,7 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
   "edges": [ /* DependencyEdge */ ],
   "commits": [ /* CommitSnapshot, oldest first */ ],
   "scenarios": [ /* ImpactScenario */ ],
+  "rules": [ /* architecture rules, see cli-and-ci.md */ ],
   "kindLabels": { "data": "Data files" },   // optional: rename the four layers for this graph
   "warnings": ["optional notes shown on load"]
 }
@@ -63,7 +64,8 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
 ```jsonc
 { "id": "e-ctrl-db", "source": "auth-controller", "target": "users-db",
   "relation": "reads",                // calls | reads | writes | imports | publishes
-  "label": "findById()", "isDraft": false }
+  "label": "findById()", "isDraft": false,
+  "typeOnly": false }                 // optional; true = only an `import type` (ignored by health, kept by rules and blast radius)
 ```
 
 **Direction:** `source` depends on `target`.

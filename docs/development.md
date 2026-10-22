@@ -54,7 +54,12 @@ npm run build        # production build; also type-checks
 npm run graph:self   # regenerate the self-graph (after code or history changes)
 npm run models       # list model IDs your configured providers serve
 npm run test:live    # score real models (opt-in; calls provider APIs)
+npm run build:cli    # bundle the CLI to dist/cli/codearchitect.mjs
+npm run cli -- analyze .            # health + rules of this repo
+npm run cli -- pr --base main       # architecture check of this branch vs main
 ```
+
+`npm test` exits non-zero if any test *file* fails to load, not only if a test fails: check the exit code (or the "Test Files" line), not just "Tests … passed". The opt-in live suite is excluded from it.
 
 ## Testing
 
@@ -103,6 +108,14 @@ Add an entry to the graph's `scenarios` (see [graph-format.md](graph-format.md#i
 - Include a `diffs` entry for **every** file that must change. Those are reported as *broken*, and everything else reachable as *review only*.
 - Use `extraImpacts` for couplings that the import graph cannot see.
 - Add a test asserting the severities.
+
+### Add a rule type
+
+Add the variant to `ArchRule` in `lib/types.ts` and to `RuleSchema` in `lib/rulesSchema.ts`, implement it in `evaluateRules` (`lib/engines/rules.ts`, pushing a `RuleViolation` that carries `ruleType`), then test it in `tests/rules.test.ts` and document it in [cli-and-ci.md](cli-and-ci.md#rules).
+
+### Change what the CLI or PR check does
+
+The logic is pure and lives in `lib/report.ts` (comparison, pass/fail, Markdown); `scripts/cli/main.ts` only reads git and files and parses flags. Rebuild with `npm run build:cli`. To try a check on your own branch: `npm run cli -- pr --base main`.
 
 ### Add a tour step
 
