@@ -35,3 +35,6 @@ export const HEALTH_META: Record<HealthLevel, { label: string; ring: string; chi
 export function kindLabelFor(graph: Pick<ArchitectureGraph, "kindLabels">, kind: NodeKind): string {
   return graph.kindLabels?.[kind] ?? KIND_META[kind].label;
 }
+
+/** Dispatched on `window` by the global keyboard shortcuts to focus the search box. */
+export const FOCUS_SEARCH_EVENT = "codearchitect:focus-search";

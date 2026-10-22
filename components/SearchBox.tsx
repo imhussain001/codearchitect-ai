@@ -5,10 +5,7 @@ import { Focus, Search, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { searchNodes, type SearchField } from "@/lib/search";
 import type { ArchNode } from "@/lib/types";
-import { KIND_META } from "@/lib/ui";
-
-/** Dispatched on `window` by the global keyboard shortcuts to focus the box. */
-export const FOCUS_SEARCH_EVENT = "codearchitect:focus-search";
+import { FOCUS_SEARCH_EVENT, KIND_META } from "@/lib/ui";
 
 const MATCH_LABEL: Record<SearchField, string> = { name: "name", path: "path", export: "export", keyword: "keyword", description: "description" };
 

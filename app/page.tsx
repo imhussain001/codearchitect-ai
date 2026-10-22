@@ -9,8 +9,9 @@ import type { NodeActions } from "@/components/CustomNode";
 import { ImportDialog } from "@/components/ImportDialog";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { GuidedTour } from "@/components/GuidedTour";
-import { FOCUS_SEARCH_EVENT } from "@/components/SearchBox";
 import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
+import { useGuidedTour } from "@/hooks/useGuidedTour";
+import { useShortcuts } from "@/hooks/useShortcuts";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
 import { fetchEngine, requestImpact, requestRepoFromFiles, requestRepoFromGithub, requestScaffold, requestStory } from "@/lib/apiClient";
 import { analyzeHealth } from "@/lib/engines/health";
@@ -20,7 +21,6 @@ import { commitsFromGitLog } from "@/lib/engines/story";
 import { kebabCase } from "@/lib/engines/localScaffold";
 import { findSample, SAMPLE_PROMPTS, SAMPLE_REPOSITORIES } from "@/lib/mockData";
 import { exportCodebase, readUpload } from "@/lib/portability";
-import { hasSeenTour, markTourSeen, type TourStep } from "@/lib/tour";
 import type { ArchitectureGraph, ArchNode, EngineInfo, NodeKind } from "@/lib/types";
 import { buildRenderGraph } from "@/lib/viewModel";
 
@@ -44,7 +44,6 @@ export default function Page() {
   const [isExporting, setIsExporting] = useState(false);
   const [centerRequest, setCenterRequest] = useState<CenterRequest | null>(null);
   const centerNonce = useRef(0);
-  const [tourOpen, setTourOpen] = useState(false);
 
   // Async results are discarded if the user switched repositories while waiting.
   const graphIdRef = useRef(graph.id);
@@ -93,56 +92,8 @@ export default function Page() {
     [dispatch],
   );
 
-  /* ---------- Guided tour: shown once on first visit, replayable with the ? button ---------- */
-  useEffect(() => {
-    let storage: Storage | null = null;
-    try {
-      storage = window.localStorage;
-    } catch {
-      storage = null;
-    }
-    if (!hasSeenTour(storage)) setTourOpen(true);
-  }, []);
-
-  const closeTour = useCallback(() => {
-    setTourOpen(false);
-    try {
-      markTourSeen(window.localStorage);
-    } catch {
-      // storage unavailable: the tour simply shows again next visit
-    }
-  }, []);
-
-  const enterTourStep = useCallback((step: TourStep) => step.tab && dispatch({ type: "setTab", tab: step.tab }), [dispatch]);
-
-  /* ---------- Keyboard shortcuts ---------- */
-  useEffect(() => {
-    if (tourOpen) return; // the tour owns the keyboard while it is open
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const isTyping = Boolean(target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable));
-      const focusSearch = () => window.dispatchEvent(new Event(FOCUS_SEARCH_EVENT));
-
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        focusSearch();
-        return;
-      }
-      if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === "Escape" && state.trace) {
-        dispatch({ type: "setTrace", trace: null });
-      } else if (event.key === "/") {
-        event.preventDefault();
-        focusSearch();
-      } else if (event.key.toLowerCase() === "f") {
-        dispatch({ type: "toggleFocus" });
-      } else if (event.key === "?") {
-        setTourOpen(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, tourOpen, state.trace]);
+  const tour = useGuidedTour(dispatch);
+  useShortcuts({ dispatch, tourOpen: tour.open, hasTrace: state.trace !== null, openTour: () => tour.setOpen(true) });
 
   /* ---------- Handlers ---------- */
   const loadGraph = useCallback((next: ArchitectureGraph) => dispatch({ type: "loadGraph", graph: next }), [dispatch]);
@@ -321,7 +272,7 @@ export default function Page() {
         onSimulate={() => void runImpact()}
         onToggleStory={() => dispatch({ type: "toggleStory" })}
         onExport={() => void exportAll()}
-        onHelp={() => setTourOpen(true)}
+        onHelp={() => tour.setOpen(true)}
       />
 
       <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -398,7 +349,7 @@ export default function Page() {
         </div>
       </main>
 
-      <GuidedTour open={tourOpen} onClose={closeTour} onEnterStep={enterTourStep} />
+      <GuidedTour open={tour.open} onClose={tour.close} onEnterStep={tour.enterStep} />
 
       <ImportDialog
         open={importState.open}
