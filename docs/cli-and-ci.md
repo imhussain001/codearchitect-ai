@@ -94,6 +94,8 @@ Reads the **base** and **head** commits straight from git (no checkout), maps bo
 
 The report lists what is new and what the change fixed, plus the **blast radius**: the components that contain changed files, everything that depends on them (directly and indirectly), the riskiest component touched, and deleted components that surviving ones still use. Changed files that belong to no component (docs, config) are noted, not counted.
 
+For script projects (MATLAB, Python), the report also lists **output files that may be out of date**: every data file downstream of a changed script or input, found by the same data-flow tracing as the Trace section, so a PR that changes `nrmse_percent.m` says which CSVs and figures to regenerate. It is advisory and never fails the check.
+
 **Exit codes:** `0` passed, `1` the check failed, `2` usage or environment error (bad flag, not a git repo, unreadable rules file).
 
 **What fails by default:** a new circular dependency, or a new `error`-severity rule violation. Problems that already existed on the base branch never fail a PR.
