@@ -13,6 +13,7 @@ import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
 import { useAutosave } from "@/hooks/useAutosave";
 import { useExport } from "@/hooks/useExport";
 import { useGuidedTour } from "@/hooks/useGuidedTour";
+import { usePreload } from "@/hooks/usePreload";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
 import { fetchEngine, requestImpact, requestRepoFromFiles, requestRepoFromGithub, requestScaffold, requestStory } from "@/lib/apiClient";
@@ -108,7 +109,9 @@ export default function Page() {
     },
     [loadGraph],
   );
-  const autosave = useAutosave({ graph, importedGraph, onRestore: restoreSaved, onReset: loadGraph });
+  // A folder passed to `codearchitect view` wins over whatever was saved last time, in either order of arrival.
+  const preloadedRef = useRef(false);
+  const autosave = useAutosave({ graph, importedGraph, onRestore: (saved) => !preloadedRef.current && restoreSaved(saved), onReset: loadGraph });
 
   const selectRepository = (id: string) => {
     if (id === CUSTOM_UPLOAD_OPTION) {
@@ -234,6 +237,14 @@ export default function Page() {
     const notes = [warning, ...(next.warnings ?? [])].filter(Boolean).join(" ");
     if (notes) notify({ tone: "warning", message: notes });
   };
+
+  usePreload(
+    ({ graph: preloaded }) => {
+      preloadedRef.current = true;
+      finishImport(preloaded);
+    },
+    (message) => notify({ tone: "error", message }),
+  );
 
   const uploadFile = async (file: File) => {
     setImportState((s) => ({ ...s, busy: true, error: null }));

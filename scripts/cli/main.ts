@@ -2,16 +2,21 @@
  * CodeArchitect command line: architecture health, rules and pull-request blast radius.
  *
  *   codearchitect analyze [dir]                       health + rules of the working tree
- *   codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
+ *   codearchitect view [dir] [--port N] [--no-open]   (map a folder and open it in the app)
+  codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
+ *   codearchitect view [dir] [--port N] [--no-open]   map a folder and open it in the app
  *
  * Files are read through git, so any two commits can be compared without checking them out.
  * Exit codes: 0 passed, 1 check failed, 2 usage or environment error.
  */
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildHeuristicGraph, isAnalyzableSource } from "../../lib/engines/heuristicGraph";
 import { comparisonToJson, compareSnapshots, evaluateCheck, renderAnalysis, renderMarkdown, takeSnapshot, type CheckOptions } from "../../lib/report";
+import { PRELOAD_ENV } from "../../lib/preload";
 import { parseRulesJson } from "../../lib/rulesSchema";
 import type { ArchRule, SourceFile } from "../../lib/types";
 
@@ -27,7 +32,7 @@ class UsageError extends Error {}
 
 type Args = { command: string; positional: string[]; flags: Map<string, string | true> };
 
-const BOOLEAN_FLAGS = new Set(["help", "no-fail", "no-fail-on-cycles", "no-fail-on-violations"]);
+const BOOLEAN_FLAGS = new Set(["help", "no-open", "no-fail", "no-fail-on-cycles", "no-fail-on-violations"]);
 
 function parseArgs(argv: string[]): Args {
   const [command = "help", ...rest] = argv;
@@ -205,6 +210,76 @@ function runPr(args: Args): number {
   return check.passed ? 0 : 1;
 }
 
+const DEFAULT_VIEW_PORT = 3000;
+const READY_POLL_MS = 500;
+const READY_TIMEOUT_MS = 120_000;
+
+/** Slug used for the graph id, so two folders never share a saved workspace. */
+const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "folder";
+
+function openBrowser(url: string): void {
+  const [command, args] = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
+  spawn(command!, args as string[], { stdio: "ignore", detached: true }).on("error", () => process.stdout.write(`Open ${url} in your browser.
+`)).unref();
+}
+
+async function waitUntilReady(url: string, isAlive: () => boolean): Promise<boolean> {
+  const deadline = Date.now() + READY_TIMEOUT_MS;
+  while (Date.now() < deadline && isAlive()) {
+    try {
+      if ((await fetch(`${url}/api/preload`)).status < 500) return true;
+    } catch {
+      /* not listening yet */
+    }
+    await new Promise((r) => setTimeout(r, READY_POLL_MS));
+  }
+  return false;
+}
+
+/** Map a folder, then start the app with that graph preloaded and open the browser. */
+async function runView(args: Args): Promise<number> {
+  const dir = resolve(args.positional[0] ?? ".");
+  if (!existsSync(dir)) throw new UsageError(`Directory not found: ${dir}`);
+  const files = sourceFilesInDir(dir);
+  if (files.length === 0) throw new UsageError(`No supported source files found in ${dir}.`);
+  const port = Number(flag(args, "port") ?? DEFAULT_VIEW_PORT);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new UsageError("--port must be a port number.");
+
+  const appRoot = fileURLToPath(new URL("../..", import.meta.url));
+  const nextBin = join(appRoot, "node_modules", "next", "dist", "bin", "next");
+  if (!existsSync(nextBin)) throw new UsageError(`The app is not installed. Run "npm install" in ${appRoot} first.`);
+
+  const name = basename(dir);
+  const graph = buildHeuristicGraph(name, files, { maxFiles: MAX_MAPPED_FILES });
+  const rules = rulesFromFile(join(dir, CONFIG_FILE));
+  const scratch = mkdtempSync(join(tmpdir(), "codearchitect-view-"));
+  const file = join(scratch, "graph.json");
+  writeFileSync(file, JSON.stringify({ stamp: new Date().toISOString(), graph: { ...graph, id: `local-${slug(name)}`, rules: rules.length ? rules : graph.rules } }));
+  process.stdout.write(`Mapped ${graph.nodes.length} components from ${files.length} files in ${dir}
+Starting the app on port ${port}…
+`);
+
+  const server = spawn(process.execPath, [nextBin, "dev", "--port", String(port)], { cwd: appRoot, stdio: ["ignore", "inherit", "inherit"], env: { ...process.env, [PRELOAD_ENV]: file } });
+  let alive = true;
+  const exited = new Promise<number>((done) => server.on("exit", (code) => ((alive = false), done(code ?? 0))));
+  const stop = () => server.kill();
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+
+  const url = `http://localhost:${port}`;
+  const ready = await waitUntilReady(url, () => alive);
+  if (ready) {
+    process.stdout.write(`
+Ready: ${url}  (Ctrl+C to stop)
+`);
+    if (!args.flags.has("no-open")) openBrowser(url);
+  }
+  const code = await exited;
+  rmSync(scratch, { recursive: true, force: true });
+  if (!ready) process.stderr.write(`\nThe app stopped before it was ready. If "npm run dev" is already running for ${appRoot}, stop it (Ctrl+C) and run view again: one app can only show one folder.\n`);
+  return code;
+}
+
 const HELP = `CodeArchitect: architecture health, rules and PR blast radius
 
 Usage
@@ -216,7 +291,7 @@ Usage
 Rules live in ${CONFIG_FILE} (an array, or {"rules": [...]}). Exit code is 1 when the check fails.
 `;
 
-function main(): number {
+async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.command === "help" || args.flags.has("help")) {
     process.stdout.write(HELP);
@@ -224,12 +299,14 @@ function main(): number {
   }
   if (args.command === "analyze") return runAnalyze(args);
   if (args.command === "pr") return runPr(args);
+  if (args.command === "view") return runView(args);
   throw new UsageError(`Unknown command "${args.command}".\n\n${HELP}`);
 }
 
-try {
-  process.exitCode = main();
-} catch (error) {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 2;
-}
+main().then(
+  (code) => void (process.exitCode = code),
+  (error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 2;
+  },
+);

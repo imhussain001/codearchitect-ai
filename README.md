@@ -37,6 +37,8 @@ npm run dev
 
 Open http://localhost:3000. No configuration is needed.
 
+**Map your own project:** with the app stopped, run `npm run view -- C:path	oyourproject` (any folder with TypeScript, JavaScript, MATLAB or Python). It analyses the folder, starts the app and opens your browser with that project loaded. Stop the usual `npm run dev` first: one app instance can only show one folder.
+
 **Try it:**
 
 1. Pick **Auth Microservice** in the repository selector.
@@ -64,6 +66,7 @@ Shortcuts are ignored while you type in a field.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Unit tests (Vitest) |
 | `npm run graph:self` | Regenerate `public/samples/codearchitect-self.graph.json` from the current code and git history |
+| `npm run view -- <folder>` | Map a folder on your disk and open it in the app (no zip or upload) |
 | `npm run cli -- analyze .` | Health and rule report for a folder (builds the CLI first) |
 | `npm run cli -- pr --base main` | Architecture check of the current branch against `main`; exit code 1 when it fails |
 | `npm run models` | List the model IDs each configured provider actually serves (helps pick `AI_MODEL`) |

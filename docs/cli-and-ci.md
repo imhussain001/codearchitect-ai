@@ -77,6 +77,14 @@ Maps the folder (git-tracked and untracked-but-not-ignored files when it is a gi
 | `--output <file>` | Write to a file instead of stdout |
 | `--no-fail` | Exit 0 even when an error-level rule is broken |
 
+### `view [dir] [--port N] [--no-open]`
+
+Maps a folder (the current one by default) and opens it in the app, with no zip or GitHub step. Files come from `git ls-files` in a repository (so `.gitignore` is respected) or a directory walk otherwise, and `.codearchitect.json` in that folder supplies the rules.
+
+From a clone of this project: `npm run view -- <folder>`. It writes the graph to a temporary file, starts the app with `CODEARCHITECT_PRELOAD_FILE` pointing at it, and opens the browser once the server answers. The app loads it once per launch: reloading the tab keeps your edits, relaunching re-reads the folder. The temporary file is removed when you press Ctrl+C.
+
+Limits: it runs the development server, so the first page load compiles for a few seconds; the app can show one folder at a time (Next.js refuses a second dev server in the same project); and the folder is read locally, nothing is uploaded.
+
 ### `pr --base <ref> [--head <ref>]`
 
 Reads the **base** and **head** commits straight from git (no checkout), maps both, and compares them.
