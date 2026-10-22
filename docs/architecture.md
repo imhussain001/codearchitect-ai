@@ -59,7 +59,7 @@ All types live in `lib/types.ts`.
 Four modes can colour the canvas: health overlay, story frame, impact analysis and builder drafts. If each wrote a status into the nodes, switching modes would need cleanup code, and any missed path would leave a stale glow on the canvas. Instead `lib/viewModel.ts` recomputes the overlay on every render, with fixed precedence:
 
 ```
-health overlay  >  story frame  >  impact analysis  >  draft (proposed)  >  normal
+health overlay  >  provenance trace  >  story frame  >  impact analysis  >  draft (proposed)  >  normal
 ```
 
 The health overlay is on whenever the Health tab is open, so it is derived from the active tab rather than stored. Two things are independent of that precedence: **focus dimming** (the selected component and its direct neighbours stay bright, everything else is dimmed) and **selection**, which comes from app state so selecting from a side panel highlights the node just like clicking it.
