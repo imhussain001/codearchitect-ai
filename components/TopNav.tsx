@@ -1,7 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { Bot, ChevronDown, Cpu, Download, FolderGit2, HelpCircle, History, Loader2, Network, Radar } from "lucide-react";
+import { Bot, ChevronDown, Cpu, FolderGit2, HelpCircle, History, Network, Radar, RotateCcw } from "lucide-react";
+import { ExportMenu } from "@/components/ExportMenu";
+import type { SaveStatus } from "@/hooks/useAutosave";
+import type { ExportKind } from "@/hooks/useExport";
 import type { ArchitectureGraph, EngineInfo } from "@/lib/types";
 
 export const CUSTOM_UPLOAD_OPTION = "__custom_upload__";
@@ -13,11 +16,15 @@ type Props = {
   engine: EngineInfo | null;
   isStoryOn: boolean;
   isImpactActive: boolean;
-  isExporting: boolean;
+  exporting: ExportKind | null;
+  saveStatus: SaveStatus;
+  /** True when the graph differs from its original (so Reset has something to undo). */
+  isEdited: boolean;
+  onReset: () => void;
   onSelectRepository: (id: string) => void;
   onSimulate: () => void;
   onToggleStory: () => void;
-  onExport: () => void;
+  onExport: (kind: ExportKind) => void;
   onHelp: () => void;
 };
 
@@ -101,6 +108,17 @@ export function TopNav(props: Props) {
         <span className="max-w-[180px] truncate">{engine ? (engine.engine === "ai" ? engine.label : "Local engine") : "…"}</span>
       </span>
 
+      <div className="flex items-center gap-2 text-[11px] text-zinc-500" aria-live="polite">
+        {props.saveStatus === "saving" && <span>Saving…</span>}
+        {props.saveStatus === "saved" && <span title="Your edits are stored in this browser only">Saved in this browser</span>}
+        {props.saveStatus === "unavailable" && <span className="text-amber-400/80" title="Browser storage is unavailable, so edits will not survive a reload">Not saving</span>}
+        {props.isEdited && (
+          <button type="button" onClick={props.onReset} title="Discard your edits and return to the original" className="flex items-center gap-1 rounded-md border border-zinc-700 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-500 hover:text-white">
+            <RotateCcw className="h-3 w-3" /> Reset
+          </button>
+        )}
+      </div>
+
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <NavButton tone="red" tour="simulate" title="Describe a change and see what it would break" active={props.isImpactActive} onClick={props.onSimulate}>
           <Radar className="h-3.5 w-3.5" /> Simulate Blast Radius
@@ -108,9 +126,7 @@ export function TopNav(props: Props) {
         <NavButton tone="violet" tour="story" title="Replay how the architecture evolved, commit by commit" active={props.isStoryOn} onClick={props.onToggleStory}>
           <History className="h-3.5 w-3.5" /> Toggle Time-Machine Story
         </NavButton>
-        <NavButton tone="zinc" onClick={props.onExport} disabled={props.isExporting}>
-          {props.isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Export Code Base
-        </NavButton>
+        <ExportMenu busy={props.exporting} onExport={props.onExport} />
         <NavButton tone="zinc" tour="help" title="Show the guided tour (?)" onClick={props.onHelp}>
           <HelpCircle className="h-3.5 w-3.5" />
           <span className="sr-only">Show the guided tour</span>

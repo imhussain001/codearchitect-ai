@@ -10,6 +10,8 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { GuidedTour } from "@/components/GuidedTour";
 import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
+import { useAutosave } from "@/hooks/useAutosave";
+import { useExport } from "@/hooks/useExport";
 import { useGuidedTour } from "@/hooks/useGuidedTour";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
@@ -20,7 +22,8 @@ import { evaluateRules } from "@/lib/engines/rules";
 import { commitsFromGitLog } from "@/lib/engines/story";
 import { kebabCase } from "@/lib/engines/localScaffold";
 import { findSample, SAMPLE_PROMPTS, SAMPLE_REPOSITORIES } from "@/lib/mockData";
-import { exportCodebase, readUpload } from "@/lib/portability";
+import type { SavedWorkspace } from "@/lib/persistence";
+import { readUpload } from "@/lib/portability";
 import type { ArchitectureGraph, ArchNode, EngineInfo, NodeKind } from "@/lib/types";
 import { buildRenderGraph } from "@/lib/viewModel";
 
@@ -41,7 +44,6 @@ export default function Page() {
   const [engine, setEngine] = useState<EngineInfo | null>(null);
   const [importedGraph, setImportedGraph] = useState<ArchitectureGraph | null>(null);
   const [importState, setImportState] = useState<{ open: boolean; busy: boolean; error: string | null }>({ open: false, busy: false, error: null });
-  const [isExporting, setIsExporting] = useState(false);
   const [centerRequest, setCenterRequest] = useState<CenterRequest | null>(null);
   const centerNonce = useRef(0);
 
@@ -82,6 +84,8 @@ export default function Page() {
     () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story, health: isHealthView ? healthReport : null, focusNodeId, selectedNodeId: state.selectedNodeId, violations: isHealthView ? violations : [], trace }),
     [graph, state.impact.result, state.story, isHealthView, healthReport, focusNodeId, state.selectedNodeId, violations, trace],
   );
+  const reportOptions = useMemo(() => ({ impact: state.impact.result, trace }), [state.impact.result, trace]);
+  const exporter = useExport({ graph, nodes, edges, report: reportOptions, notify });
 
   /** Select a component and pan/zoom the canvas to it. */
   const selectAndCenter = useCallback(
@@ -97,6 +101,14 @@ export default function Page() {
 
   /* ---------- Handlers ---------- */
   const loadGraph = useCallback((next: ArchitectureGraph) => dispatch({ type: "loadGraph", graph: next }), [dispatch]);
+  const restoreSaved = useCallback(
+    (saved: SavedWorkspace) => {
+      if (saved.original) setImportedGraph(saved.original);
+      loadGraph(saved.graph);
+    },
+    [loadGraph],
+  );
+  const autosave = useAutosave({ graph, importedGraph, onRestore: restoreSaved, onReset: loadGraph });
 
   const selectRepository = (id: string) => {
     if (id === CUSTOM_UPLOAD_OPTION) {
@@ -104,7 +116,9 @@ export default function Page() {
       return;
     }
     const next = id === importedGraph?.id ? importedGraph : findSample(id);
-    if (next) loadGraph(next);
+    if (!next) return;
+    // Prefer the user's saved edits over the pristine copy.
+    void autosave.loadSaved(id).then((saved) => (saved ? restoreSaved(saved) : loadGraph(next)));
   };
 
   const runImpact = useCallback(async () => {
@@ -244,17 +258,6 @@ export default function Page() {
     }
   };
 
-  const exportAll = async () => {
-    setIsExporting(true);
-    try {
-      await exportCodebase(graph);
-    } catch (error) {
-      notify({ tone: "error", message: `Export failed: ${errorMessage(error)}` });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const notice = state.notice;
   const NoticeIcon = notice ? NOTICE_STYLE[notice.tone].icon : Info;
 
@@ -267,11 +270,14 @@ export default function Page() {
         engine={engine}
         isStoryOn={state.story.enabled}
         isImpactActive={state.impact.result !== null || state.impact.status === "running"}
-        isExporting={isExporting}
+        exporting={exporter.busy}
+        saveStatus={autosave.status}
+        isEdited={autosave.dirty}
+        onReset={autosave.reset}
         onSelectRepository={selectRepository}
         onSimulate={() => void runImpact()}
         onToggleStory={() => dispatch({ type: "toggleStory" })}
-        onExport={() => void exportAll()}
+        onExport={(kind) => void exporter.run(kind)}
         onHelp={() => tour.setOpen(true)}
       />
 

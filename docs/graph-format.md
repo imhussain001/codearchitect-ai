@@ -1,6 +1,6 @@
 # Graph format (`codearchitect/v1`)
 
-Graphs move between the app, the API and disk as JSON. **Export Code Base** writes a ZIP containing every component's code at its `filePath`, plus this manifest as `codearchitect.graph.json`. Uploading that ZIP, or the JSON on its own, restores the graph exactly.
+Graphs move between the app, the API and disk as JSON. **Export → Code base** writes a ZIP containing every component's code at its `filePath`, plus this manifest as `codearchitect.graph.json`. Uploading that ZIP, or the JSON on its own, restores the graph exactly.
 
 The schema is `GraphSchema` in `lib/graphSchema.ts`; the browser and the API validate against the same definition.
 
