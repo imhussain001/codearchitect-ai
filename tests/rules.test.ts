@@ -130,7 +130,7 @@ describe("rules on the canvas and in state", () => {
   });
 
   it("stores rules on the graph through the reducer", () => {
-    const state = { graph: authMicroservice, selectedNodeId: null, activeTab: "health", impactPrompt: "", impact: { status: "idle", result: null }, story: { enabled: false, index: 0, isPlaying: false, narrative: null, status: "idle" }, scaffold: { status: "idle", result: null }, focusEnabled: false, notice: null } as WorkspaceState;
+    const state = { graph: authMicroservice, selectedNodeId: null, activeTab: "health", impactPrompt: "", impact: { status: "idle", result: null }, story: { enabled: false, index: 0, isPlaying: false, narrative: null, status: "idle" }, scaffold: { status: "idle", result: null }, focusEnabled: false, trace: null, notice: null } as WorkspaceState;
     const next = workspaceReducer(state, { type: "setRules", rules: [rule] });
     expect(next.graph.rules).toEqual([rule]);
     expect(evaluateRules(next.graph)).toHaveLength(2);

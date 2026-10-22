@@ -145,6 +145,21 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Provenance (`lib/engines/provenance.ts`)
+
+Tests: `tests/provenance.test.ts`. A breadth-first traversal over data flow. Edges point at what a thing depends on (`reads`, `calls`, `imports`), except `writes`, which points from a **producer** to what it produces.
+
+| Direction | Question | Rules |
+|---|---|---|
+| `upstream` | Where does this come from? | From a data node, go to the code that **writes** it. From code, go to what it reads and calls, but **not** to what it writes (an output is a product, not an input). A data node nothing writes is a **raw input**. Repeats across pipeline stages. |
+| `downstream` | What does this affect? | From any node, go to the code that reads or calls it, then to everything that code **writes**. Repeats, so changing a raw input lists every result in every later stage that would be out of date. |
+
+Sibling outputs of the producing script are not dragged into an upstream trace. Drafts are ignored and cycles terminate. Steps are ordered like a pipeline (deepest first for upstream; the source first for downstream; at equal depth: inputs, then code, then intermediate files, then the target). `describeTrace` turns a trace into plain sentences.
+
+It also works on ordinary code graphs, where upstream is dependencies and downstream is dependents. In the app, a trace takes over the canvas (numbered steps, the rest dimmed) unless the Health tab is open; Esc clears it.
+
+Note the difference from impact analysis: blast radius follows *code coupling* (who breaks if this changes), while a trace follows *data flow* (which results derive from this).
+
 ## Script data-flow mapper (`lib/engines/scripts.ts`)
 
 Tests: `tests/scripts.test.ts`. Maps MATLAB (`.m`) and Python (`.py`) analysis code. Runs inside the heuristic mapper whenever scripts are present.

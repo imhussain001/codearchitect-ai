@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { ArrowDownRight, ArrowUpRight, MousePointerClick, Zap } from "lucide-react";
 import { Glossary } from "@/components/Glossary";
 import { CodeBlock } from "@/components/inspector/CodeBlock";
+import { describeTrace, type Trace, type TraceMode, type TraceRole } from "@/lib/engines/provenance";
 import { explainNode } from "@/lib/explain";
 import type { NodeHealth } from "@/lib/engines/health";
 import type { ArchitectureGraph, ArchNode } from "@/lib/types";
@@ -31,15 +32,88 @@ function Chips({ items, empty }: { items: string[]; empty: string }) {
   );
 }
 
+const ROLE_LABEL: Record<TraceRole, string> = { input: "input file", produced: "intermediate", code: "code", target: "this component" };
+
+/** Follow data flow: where this comes from, or what it affects, highlighted on the map. */
+function TraceSection({ graph, nodeLabel, nodeId, trace, onTrace, onSelectNode }: { graph: ArchitectureGraph; nodeLabel: string; nodeId: string; trace: Trace | null; onTrace: (mode: TraceMode | null) => void; onSelectNode: (id: string) => void }) {
+  const here = trace && trace.nodeId === nodeId ? trace : null;
+  const elsewhere = trace && trace.nodeId !== nodeId ? trace : null;
+  const description = here ? describeTrace(graph, here) : null;
+  const label = (id: string) => graph.nodes.find((n) => n.id === id)?.data.label ?? id;
+
+  const button = (mode: TraceMode, text: string, hint: string) => (
+    <button
+      type="button"
+      aria-pressed={here?.mode === mode}
+      title={hint}
+      onClick={() => onTrace(here?.mode === mode ? null : mode)}
+      className={clsx(
+        "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition",
+        here?.mode === mode ? "border-cyan-400/70 bg-cyan-500/20 text-cyan-100" : "border-zinc-700 text-zinc-300 hover:border-cyan-500/50 hover:text-cyan-100",
+      )}
+    >
+      {text}
+    </button>
+  );
+
+  return (
+    <section aria-label="Trace" className="space-y-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-cyan-300">Trace the data flow</h3>
+      <div className="flex gap-2">
+        {button("upstream", "Where it comes from", "Highlight the code and input files that produced this")}
+        {button("downstream", "What it affects", "Highlight everything that uses this, and the results that would be out of date")}
+      </div>
+
+      {elsewhere && (
+        <p className="text-[11px] text-zinc-400">
+          The map is tracing <b className="text-zinc-200">{label(elsewhere.nodeId)}</b>.{" "}
+          <button type="button" onClick={() => onTrace(null)} className="text-cyan-300 underline-offset-2 hover:underline">
+            Clear trace (Esc)
+          </button>
+        </p>
+      )}
+
+      {here && description && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-zinc-100">{description.headline}</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-zinc-300">
+            {description.lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <ol className="divide-y divide-zinc-800/80 rounded-lg border border-zinc-800">
+            {here.steps.map((step, i) => (
+              <li key={step.nodeId}>
+                <button type="button" onClick={() => onSelectNode(step.nodeId)} className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition hover:bg-zinc-800/40">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-zinc-950">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-zinc-200">{label(step.nodeId)}</span>
+                  <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">{ROLE_LABEL[step.role]}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          <button type="button" onClick={() => onTrace(null)} className="text-[11px] text-cyan-300 underline-offset-2 hover:underline">
+            Clear trace (Esc)
+          </button>
+        </div>
+      )}
+      {!here && !elsewhere && <p className="text-[11px] leading-relaxed text-zinc-500">Pick a direction to highlight how {nodeLabel} fits into the pipeline, step by step.</p>}
+    </section>
+  );
+}
+
 type Props = {
   graph: ArchitectureGraph;
   node: ArchNode | undefined;
   health?: NodeHealth;
+  /** The active provenance trace (for any component), and a way to start or clear one for this component. */
+  trace: Trace | null;
+  onTrace: (mode: TraceMode | null) => void;
   onSelectNode: (id: string) => void;
   onSimulate: (id: string) => void;
 };
 
-export function NodeInspector({ graph, node, health, onSelectNode, onSimulate }: Props) {
+export function NodeInspector({ graph, node, health, trace, onTrace, onSelectNode, onSimulate }: Props) {
   if (!node) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-zinc-500">
@@ -98,6 +172,8 @@ export function NodeInspector({ graph, node, health, onSelectNode, onSimulate }:
           </ul>
         </section>
       )}
+
+      <TraceSection graph={graph} nodeLabel={data.label} nodeId={node.id} trace={trace} onTrace={onTrace} onSelectNode={onSelectNode} />
 
       <Section title="Source">
         <CodeBlock code={data.code} title={`${data.filePath} · ${data.language}`} />

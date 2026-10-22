@@ -46,8 +46,11 @@ export function explainNode(graph: ArchitectureGraph, nodeId: string): PlainExpl
   const label = (id: string) => nodeById(graph.nodes, id)?.data.label ?? id;
   const real = graph.edges.filter((e) => !e.isDraft);
 
-  const direct = [...new Set(real.filter((e) => e.target === nodeId).map((e) => e.source))];
-  const uses = [...new Set(real.filter((e) => e.source === nodeId).map((e) => e.target))];
+  // A `writes` edge means "produces", not "uses": a script that writes a file does not rely on it.
+  const direct = [...new Set(real.filter((e) => e.target === nodeId && e.relation !== "writes").map((e) => e.source))];
+  const writers = [...new Set(real.filter((e) => e.target === nodeId && e.relation === "writes").map((e) => e.source))];
+  const uses = [...new Set(real.filter((e) => e.source === nodeId && e.relation !== "writes").map((e) => e.target))];
+  const produces = [...new Set(real.filter((e) => e.source === nodeId && e.relation === "writes").map((e) => e.target))];
   const reach = collectDependents(nodeId, real);
   const indirect = reach.size - 1;
   const customLayer = graph.kindLabels?.[node.data.kind];
@@ -66,8 +69,11 @@ export function explainNode(graph: ArchitectureGraph, nodeId: string): PlainExpl
   } else if (indirect >= WIDE_MIN_COMPONENTS && indirect / total >= WIDE_MIN_SHARE) {
     bullets.push(`A change here can ripple to ${indirect} of the other ${total} components: a wide blast radius, so plan it carefully.`);
   } else {
-    bullets.push(`A change here can ripple to ${plural(indirect, "other component")}${indirect > direct.length ? ", some of them indirectly" : ""}.`);
+    bullets.push(`A change here can ripple to ${plural(indirect, "other component")}${indirect > direct.length + writers.length ? ", some of them indirectly" : ""}.`);
   }
+
+  if (writers.length) bullets.push(`It is written by ${listNames(writers.map(label))}.`);
+  if (produces.length) bullets.push(`It writes ${listNames(produces.map(label))}.`);
 
   const kind = customLayer ? `part of “${customLayer}”` : KIND_PHRASE[node.data.kind];
   return { headline: `${node.data.label} is ${kind}.`, bullets };

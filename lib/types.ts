@@ -66,6 +66,10 @@ export type RenderNodeData = NodeData & {
   dimmed?: boolean;
   /** Number of architecture-rule violations involving this node (shown in the Health view). */
   violations?: number;
+  /** Part of the active provenance trace. */
+  traced?: boolean;
+  /** 1-based position along the trace, from raw inputs to the target (or from the source outward). */
+  traceStep?: number;
 };
 
 export type ArchNode = Node<NodeData, "component">;
@@ -96,6 +100,8 @@ export type EdgeRenderData = {
   isCycle: boolean;
   /** Breaks an architecture rule (Health overlay). */
   isViolation: boolean;
+  /** Carries data along the active provenance trace. */
+  isTrace: boolean;
 };
 export type RenderEdge = Edge<EdgeRenderData>;
 
