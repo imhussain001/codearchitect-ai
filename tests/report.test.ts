@@ -168,3 +168,11 @@ describe("stale outputs", () => {
     expect(renderMarkdown(compareSnapshots(base, base, ["src/server/auth/jwt.ts"]), evaluateCheck(c))).not.toContain("out of date");
   });
 });
+
+describe("report grammar", () => {
+  it("agrees verb and pronoun with the counts", () => {
+    const md = renderMarkdown(compareSnapshots(base, base, ["src/server/auth/jwt.ts"]), evaluateCheck(compareSnapshots(base, base)));
+    expect(md).toMatch(/other components? (depends|depend) on (it|them)/);
+    expect(md).not.toMatch(/1 other component depend /);
+  });
+});

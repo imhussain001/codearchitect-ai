@@ -237,8 +237,8 @@ export function renderMarkdown(c: Comparison, check: CheckResult): string {
     lines.push(
       `This change touches **${c.changedNodeIds.length}** component${c.changedNodeIds.length === 1 ? "" : "s"} (${listWithMore(c.changedNodeIds.map(label), 5).join(", ")}). ` +
         (dependents === 0
-          ? "Nothing else depends on them."
-          : `**${dependents}** other component${dependents === 1 ? "" : "s"} depend on them (${c.directDependents.length} directly, ${c.indirectDependents.length} indirectly).`),
+          ? (c.changedNodeIds.length === 1 ? "Nothing else depends on it." : "Nothing else depends on them.")
+          : `**${dependents}** other component${dependents === 1 ? " depends" : "s depend"} on ${c.changedNodeIds.length === 1 ? "it" : "them"} (${c.directDependents.length} directly, ${c.indirectDependents.length} indirectly).`),
     );
     if (c.riskiestTouched) {
       const level = head.health.nodes[c.riskiestTouched.nodeId]?.level ?? "healthy";
