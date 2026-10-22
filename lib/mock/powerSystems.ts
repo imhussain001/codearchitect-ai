@@ -31,6 +31,18 @@ plot_overlay(base, psse, 'overlay_boundary.png');
 `,
   },
   {
+    path: "make_report.m",
+    content: `%% make_report.m
+% Second stage: reads the error table written by run_study and saves the bar
+% chart used in the paper.
+T = readtable('nrmse_results.csv');
+figure;
+bar(categorical(T.level), T.nrmse_pct);
+xlabel('Model level'); ylabel('NRMSE (%)');
+exportgraphics(gcf, 'nrmse_bar.png');
+`,
+  },
+  {
     path: "load_trace.m",
     content: `function trace = load_trace(file)
 % LOAD_TRACE  Read a simulation CSV (time in column 1, voltage in column 2).

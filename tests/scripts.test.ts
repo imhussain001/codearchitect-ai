@@ -104,12 +104,13 @@ describe("buildHeuristicGraph with scripts", () => {
   const byLabel = (label: string) => graph.nodes.find((n) => n.data.label === label)!;
 
   it("maps the sample pipeline: entry script, helpers, data files", () => {
-    expect(graph.nodes.filter((n) => n.data.filePath.endsWith(".m"))).toHaveLength(5);
+    expect(graph.nodes.filter((n) => n.data.filePath.endsWith(".m"))).toHaveLength(6);
     expect(byLabel("Run Study").data.kind).toBe("api");
+    expect(byLabel("Make Report").data.kind).toBe("api");
     expect(byLabel("Plot Overlay").data.kind).toBe("frontend");
     expect(byLabel("Load Trace").data.kind).toBe("logic");
     expect(graph.nodes.filter((n) => n.data.kind === "data").map((n) => n.data.label).sort()).toEqual(
-      ["nrmse_results.csv", "overlay_boundary.png", "pscad_base.csv", "pscad_lvl1.csv", "pscad_lvl2.csv", "psse_boundary.csv"].sort(),
+      ["nrmse_bar.png", "nrmse_results.csv", "overlay_boundary.png", "pscad_base.csv", "pscad_lvl1.csv", "pscad_lvl2.csv", "psse_boundary.csv"].sort(),
     );
     expect(graph.kindLabels).toMatchObject({ data: "Data files", api: "Entry scripts" });
   });
