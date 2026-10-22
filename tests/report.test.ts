@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { compareSnapshots, evaluateCheck, renderMarkdown, REPORT_MARKER, takeSnapshot } from "@/lib/report";
-import { authMicroservice } from "@/lib/mockData";
+import { compareSnapshots, comparisonToJson, evaluateCheck, renderMarkdown, REPORT_MARKER, takeSnapshot } from "@/lib/report";
+import { authMicroservice, powerSystemsMatlab } from "@/lib/mockData";
 import type { ArchitectureGraph, ArchRule } from "@/lib/types";
 
 const rules: ArchRule[] = [
@@ -133,5 +133,38 @@ describe("type-only edges in the blast radius", () => {
     };
     const c = compareSnapshots(null, takeSnapshot(g, []), ["src/server/db/users.ts"]);
     expect(c.directDependents).toContain("dashboard");
+  });
+});
+
+describe("stale outputs", () => {
+  const matlab = takeSnapshot(powerSystemsMatlab);
+  const changedAt = (files: string[]) => compareSnapshots(matlab, matlab, files);
+
+  it("lists every output a changed helper feeds, across pipeline stages", () => {
+    const c = changedAt(["nrmse_percent.m"]);
+    expect(c.staleOutputs.map((s) => s.output)).toEqual(expect.arrayContaining(["nrmse_results.csv", "nrmse_bar.png"]));
+    expect(c.staleOutputs.every((s) => s.because.includes("Nrmse Percent"))).toBe(true);
+  });
+
+  it("treats a changed raw input as making its results stale", () => {
+    const c = changedAt(["pscad_base.csv"]);
+    expect(c.staleOutputs.map((s) => s.output)).toContain("nrmse_results.csv");
+  });
+
+  it("does not list a changed file as stale, nor anything unrelated", () => {
+    const c = changedAt(["make_report.m"]);
+    expect(c.staleOutputs.map((s) => s.output)).toEqual(["nrmse_bar.png"]);
+  });
+
+  it("is empty for graphs without data files", () => {
+    expect(compareSnapshots(base, base, ["src/server/auth/jwt.ts"]).staleOutputs).toEqual([]);
+  });
+
+  it("appears in the markdown and the JSON, and only when there is something to say", () => {
+    const c = changedAt(["nrmse_percent.m"]);
+    const check = evaluateCheck(c);
+    expect(renderMarkdown(c, check)).toContain("may be out of date until the pipeline is re-run");
+    expect(comparisonToJson(c, check).blastRadius.staleOutputs.length).toBeGreaterThan(0);
+    expect(renderMarkdown(compareSnapshots(base, base, ["src/server/auth/jwt.ts"]), evaluateCheck(c))).not.toContain("out of date");
   });
 });

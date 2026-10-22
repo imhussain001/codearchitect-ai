@@ -1,5 +1,6 @@
 import { analyzeHealth, healthIssueKey, riskiestNodes, type HealthIssue, type HealthReport } from "@/lib/engines/health";
 import { evaluateRules, violationKey } from "@/lib/engines/rules";
+import { traceProvenance } from "@/lib/engines/provenance";
 import { nodeIdForPath } from "@/lib/engines/story";
 import { collectDependents, nodeById } from "@/lib/graph";
 import type { ArchitectureGraph, ArchRule, RuleViolation } from "@/lib/types";
@@ -39,6 +40,8 @@ export type Comparison = {
   /** Deleted components that surviving components still depend on (in the base map). */
   removedStillUsedBy: Array<{ removed: string; usedBy: string[] }>;
   riskiestTouched: { nodeId: string; score: number } | null;
+  /** Output files (data nodes) that a changed script or input feeds, and so may be out of date until it is re-run. */
+  staleOutputs: Array<{ output: string; because: string[] }>;
 };
 
 function byKey<T>(items: readonly T[], key: (item: T) => string): Map<string, T> {
@@ -86,6 +89,19 @@ export function compareSnapshots(base: Snapshot | null, head: Snapshot, changedF
     }
   }
 
+  // A changed script or input file makes everything downstream of it stale until the pipeline is re-run.
+  const staleBy = new Map<string, string[]>();
+  for (const id of changedNodeIds) {
+    const trace = traceProvenance(head.graph, { nodeId: id, mode: "downstream" });
+    for (const out of trace?.results ?? []) {
+      if (changedNodeIds.has(out)) continue;
+      (staleBy.get(out) ?? staleBy.set(out, []).get(out)!).push(nodeById(head.graph.nodes, id)!.data.label);
+    }
+  }
+  const staleOutputs = [...staleBy]
+    .map(([out, because]) => ({ output: nodeById(head.graph.nodes, out)!.data.label, because }))
+    .sort((a, b) => a.output.localeCompare(b.output));
+
   const touched = [...changedNodeIds].map((id) => head.health.nodes[id]).filter((n) => n !== undefined);
   const riskiest = touched.sort((a, b) => b.score - a.score)[0];
 
@@ -104,6 +120,7 @@ export function compareSnapshots(base: Snapshot | null, head: Snapshot, changedF
     indirectDependents: [...indirect],
     removedStillUsedBy,
     riskiestTouched: riskiest ? { nodeId: riskiest.nodeId, score: riskiest.score } : null,
+    staleOutputs,
   };
 }
 
@@ -163,6 +180,7 @@ export function comparisonToJson(c: Comparison, check: CheckResult) {
       indirectDependents: c.indirectDependents.map(label),
       unmappedFiles: c.unmappedFiles,
       removedStillUsedBy: c.removedStillUsedBy,
+      staleOutputs: c.staleOutputs,
     },
   };
 }
@@ -227,6 +245,10 @@ export function renderMarkdown(c: Comparison, check: CheckResult): string {
       lines.push(`Riskiest component touched: **${label(c.riskiestTouched.nodeId)}** (change-risk ${c.riskiestTouched.score}, ${level}).`);
     }
     for (const r of c.removedStillUsedBy) lines.push(`⚠ Removed **${escapeCell(r.removed)}** is still used by ${listWithMore(r.usedBy, 5).join(", ")}.`);
+    if (c.staleOutputs.length) {
+      lines.push("", `**${c.staleOutputs.length}** output file${c.staleOutputs.length === 1 ? "" : "s"} may be out of date until the pipeline is re-run:`);
+      for (const s of listWithMore(c.staleOutputs.map((s) => `- \`${escapeCell(s.output)}\` _(from ${listWithMore(s.because, 3).map(escapeCell).join(", ")})_`))) lines.push(s);
+    }
     if (dependents > 0) {
       lines.push("", "<details><summary>Components that may need a look</summary>", "");
       for (const id of listWithMore(c.directDependents.map(label))) lines.push(`- ${id} _(direct)_`);
