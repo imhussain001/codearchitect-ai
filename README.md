@@ -28,14 +28,35 @@ Three sample projects are built in (*E-Commerce API*, *Auth Microservice*, and a
 
 ## Quick start
 
-Requires Node.js 20+.
+Requires [Node.js](https://nodejs.org) 20 or newer. Check with `node --version`.
+
+**1. Open a terminal in the project folder.** Every `npm` command must run *inside* this folder, or you get `ENOENT … package.json`.
+
+| Where you start | Command |
+|---|---|
+| Windows Command Prompt | `cd /d E:codearchitect-ai` (the `/d` switches drive as well as folder) |
+| Windows PowerShell | `cd E:codearchitect-ai` |
+| macOS / Linux | `cd path/to/codearchitect-ai` |
+
+**2. Install, once** (and again after pulling new changes):
 
 ```bash
 npm install
+```
+
+**3. Start the app:**
+
+```bash
 npm run dev
 ```
 
-Open http://localhost:3000. No configuration is needed.
+**4. Open the address it prints**, normally http://localhost:3000 (another port if 3000 is taken). Stop it with `Ctrl+C`. No configuration or API key is needed; without one it uses the built-in local engine.
+
+**Troubleshooting**
+
+- `Could not read package.json` / `ENOENT`: you are not in the project folder (step 1).
+- `Cannot find module …`: run `npm install` (step 2).
+- Port already in use: run `npm run dev -- --port 3100`.
 
 **Try it:**
 
