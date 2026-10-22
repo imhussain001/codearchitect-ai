@@ -33,7 +33,7 @@ lib/
   graph.ts, diff.ts        algorithms
   graphSchema.ts           shared zod schema
   viewModel.ts             render overlay
-  apiClient.ts, portability.ts, ui.ts
+  apiClient.ts, portability.ts, export.ts, persistence.ts, ui.ts
   engines/                 localImpact, story, heuristicGraph, localScaffold, zip
   server/                  analyzers, schemas, respond, github  (server-only)
   server/ai/               provider config, Anthropic + OpenAI-compatible adapters, JSON repair

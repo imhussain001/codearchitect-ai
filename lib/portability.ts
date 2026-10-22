@@ -8,19 +8,52 @@ import type { ArchitectureGraph, SourceFile } from "@/lib/types";
 export const GRAPH_MANIFEST = "codearchitect.graph.json";
 const MANIFEST_FORMAT = "codearchitect/v1";
 
+/** Lower-case, dash-separated file stem for a graph name. */
+export const fileStem = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "architecture";
+
+/** Hand a blob to the browser as a download. */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export const downloadText = (text: string, filename: string, type: string) => downloadBlob(new Blob([text], { type: `${type};charset=utf-8` }), filename);
+
+const PNG_SCALE = 2;
+const MAX_PNG_PIXELS = 16_000_000;
+
+/** Rasterise an SVG document (needs a browser canvas). Scales down for very large diagrams. */
+export async function svgToPngBlob(svg: string, width: number, height: number): Promise<Blob> {
+  const scale = Math.min(PNG_SCALE, Math.sqrt(MAX_PNG_PIXELS / (width * height)));
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser cannot draw to a canvas.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("PNG encoding failed"))), "image/png"));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export const graphManifestText = (graph: ArchitectureGraph) => JSON.stringify({ format: MANIFEST_FORMAT, exportedAt: new Date().toISOString(), graph }, null, 2);
+
 /** Bundle every component's current code at its file path, plus a manifest that restores the exact graph. */
 export async function exportCodebase(graph: ArchitectureGraph): Promise<void> {
   const zip = new JSZip();
   for (const node of graph.nodes) zip.file(node.data.filePath, node.data.code);
-  zip.file(GRAPH_MANIFEST, JSON.stringify({ format: MANIFEST_FORMAT, exportedAt: new Date().toISOString(), graph }, null, 2));
-
-  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${graph.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-codebase.zip`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  zip.file(GRAPH_MANIFEST, graphManifestText(graph));
+  downloadBlob(await zip.generateAsync({ type: "blob", compression: "DEFLATE" }), `${fileStem(graph.name)}-codebase.zip`);
 }
 
 export function parseGraphManifest(text: string): ArchitectureGraph {

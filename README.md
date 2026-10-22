@@ -21,7 +21,8 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | 🎓 | **Easy to understand** | A guided tour on first visit, "In plain words" summaries of every component and analysis (with an effort estimate and order of work), tooltips and a glossary. |
 | 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write. |
 | 🧬 | **Provenance trace** | Select any component and trace **where it comes from** (the scripts, functions and raw input files behind a figure or result, across pipeline stages) or **what it affects** (every result that would be out of date if an input changed). The path is numbered on the map and explained in plain words. |
-| 📦 | **Import / export** | Import a repository from a ZIP or a GitHub URL. Export every component's code plus a manifest that restores the exact graph. |
+| 📦 | **Import / export** | Import a repository from a ZIP or a GitHub URL. Export the diagram (PNG/SVG, matching what is on screen), a Mermaid file, a Markdown architecture report, the graph JSON, or every component's code plus a manifest that restores the exact graph. |
+| 💾 | **Autosave** | Edits (drafts, applied changes, rules, imports) are saved in this browser a moment after you make them and restored on reload. **Reset** returns to the original. |
 
 Three sample projects are built in (*E-Commerce API*, *Auth Microservice*, and a *Power-Systems Study* written in MATLAB). The app also ships a map of **its own codebase** in `public/samples/`; load it via **Custom Upload…** to explore how this project is put together.
 
@@ -137,8 +138,8 @@ flowchart LR
 
 - The local engine's impact diffs are exact only for **authored scenarios**. For other prompts it marks the affected lines heuristically, and an AI model is needed for concrete code edits.
 - Repository mapping by the local engine is file-level: one node per file, at most 60 files. An AI model groups files into architectural components instead.
-- Applied refactors and scaffolds change the in-memory model only. Use **Export Code Base** to get the files; nothing is written to your repository.
-- Graph state is not persisted between page reloads. Export the graph to keep it.
+- Applied refactors and scaffolds change the in-memory model only. Use **Export → Code base** to get the files; nothing is written to your repository.
+- Autosave is per browser (IndexedDB): it is not shared across devices or browsers, and private windows may not keep it. Export the graph to move it elsewhere. Only edits to the graph are saved, not which panel or overlay was open.
 - Script mapping reads string literals: file names built at run time (`[name '_base.csv']`) appear as patterns, files passed through variables to a helper function are linked to the script that names them rather than to the helper, and nothing is executed. Data file contents are never read.
 - Health scores are structural heuristics for deciding where to look first, not a verdict on code quality.
 - The PR check maps source files and their imports. It cannot see dynamic imports with computed paths or runtime-injected dependencies, and a renamed file shows as one removed and one added component.

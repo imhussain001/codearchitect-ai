@@ -13,7 +13,8 @@ flowchart TB
     Store["hooks/useWorkspace.ts<br/>reducer"]
     VM["lib/viewModel.ts<br/>render overlay"]
     Client["lib/apiClient.ts"]
-    Port["lib/portability.ts<br/>ZIP / JSON"]
+    Port["lib/portability.ts · lib/export.ts<br/>ZIP / JSON / SVG / Mermaid / report"]
+    Persist["lib/persistence.ts<br/>IndexedDB autosave"]
   end
   subgraph Shared["Isomorphic (pure)"]
     Engines["lib/engines/*<br/>impact · story · heuristicGraph · scaffold · zip"]
@@ -26,7 +27,7 @@ flowchart TB
     AIGW["lib/server/ai/*<br/>provider config + adapters<br/>(Anthropic · OpenAI-compatible)"]
     GH["lib/server/github.ts"]
   end
-  Page --> Comp & Store & VM & Client & Port
+  Page --> Comp & Store & VM & Client & Port & Persist
   VM --> Core
   Client -- fetch --> Routes
   Client -. offline .-> Engines
