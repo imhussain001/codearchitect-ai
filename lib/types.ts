@@ -90,6 +90,8 @@ export type DependencyEdge = {
   isDraft?: boolean;
   /** Only `import type`: erased at runtime. Health ignores it; blast radius and rules still count it. */
   typeOnly?: boolean;
+  /** Names the source uses from the target (`*` = the whole module). Absent when unknown, e.g. non-JS/TS files. */
+  symbols?: string[];
 };
 
 export type EdgeRenderData = {

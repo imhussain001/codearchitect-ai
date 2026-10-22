@@ -1,3 +1,4 @@
+import { edgeUses, exportedNames } from "@/lib/engines/symbols";
 import { collectDependents, exportedIdentifiers, nodeById } from "@/lib/graph";
 import type {
   ArchitectureGraph,
@@ -68,14 +69,23 @@ export function resolveRootNode(prompt: string, graph: ArchitectureGraph, select
   return best.id;
 }
 
+const MIN_SYMBOL_LENGTH = 3;
+
+/** An export of `root` that the prompt names exactly (`rename verifyToken`); the longest match wins. */
+export function symbolInPrompt(prompt: string, root: ArchNode): string | undefined {
+  return exportedNames(root)
+    .filter((name) => name.length >= MIN_SYMBOL_LENGTH && new RegExp(String.raw`(?<![\w$])${name.replace(/\$/g, String.raw`\$`)}(?![\w$])`).test(prompt))
+    .sort((a, b) => b.length - a.length)[0];
+}
+
 function severityForDepth(depth: number): NodeImpact["severity"] {
   if (depth === 0) return "modified";
   return depth === 1 ? "broken" : "impacted";
 }
 
-function reasonForDepth(depth: number, rootLabel: string): string {
+function reasonForDepth(depth: number, rootLabel: string, symbol?: string): string {
   if (depth === 0) return "Origin of the change.";
-  if (depth === 1) return `Directly consumes ${rootLabel}; its contract changes underneath this file.`;
+  if (depth === 1) return symbol ? `Imports \`${symbol}\` from ${rootLabel}, so its contract changes underneath this file.` : `Directly consumes ${rootLabel}; its contract changes underneath this file.`;
   return `Transitively depends on ${rootLabel} (${depth} hops); payload or type changes propagate here.`;
 }
 
@@ -140,10 +150,15 @@ export function analyzeImpactLocally(
   // With an authored scenario we know which files need edits: only those are "broken";
   // other graph dependents are review-only. Without one, fall back to depth-based severity.
   const authoredEdits = new Map(scenario?.diffs.map((d) => [d.nodeId, d.rationale]) ?? []);
-  const depths = collectDependents(rootNodeId, graph.edges);
+  // When the prompt names one export, importers that do not use it are not affected: leave them out.
+  const symbol = scenario ? undefined : symbolInPrompt(trimmed, root);
+  const edges = symbol ? graph.edges.filter((e) => !(e.target === rootNodeId && e.relation === "imports" && !edgeUses(e.symbols, symbol))) : graph.edges;
+  const spared = symbol ? new Set(graph.edges.filter((e) => e.target === rootNodeId && e.relation === "imports" && !edges.includes(e)).map((e) => e.source)) : new Set<string>();
+  const depths = collectDependents(rootNodeId, edges);
+  for (const id of spared) if (depths.get(id) === undefined) depths.delete(id);
   const impacts: NodeImpact[] = [...depths.entries()].map(([nodeId, depth]) => {
     if (!scenario || depth === 0) {
-      return { nodeId, depth, severity: severityForDepth(depth), reason: reasonForDepth(depth, root.data.label) };
+      return { nodeId, depth, severity: severityForDepth(depth), reason: reasonForDepth(depth, root.data.label, symbol) };
     }
     const rationale = authoredEdits.get(nodeId);
     return rationale
@@ -173,7 +188,7 @@ export function analyzeImpactLocally(
     rootNodeId,
     summary:
       scenario?.summary ??
-      `"${root.data.label}" is the origin. ${brokenCount} component(s) consume it directly and ${impacts.length - brokenCount - 1} more are reached transitively. Edits below are heuristic markers — connect an AI model for concrete code changes.`,
+      `${symbol ? `Changing \`${symbol}\` in "${root.data.label}"${spared.size ? ` spares ${spared.size} importer${spared.size === 1 ? " that does" : "s that do"} not use it` : ""}. ` : ""}"${root.data.label}" is the origin. ${brokenCount} component(s) consume it directly and ${impacts.length - brokenCount - 1} more are reached transitively. Edits below are heuristic markers — connect an AI model for concrete code changes.`,
     riskScore: computeRiskScore(impacts, graph.nodes.length),
     impacts,
     diffs,

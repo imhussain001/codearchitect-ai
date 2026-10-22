@@ -32,7 +32,7 @@ type Props = {
   /** Select a component and pan/zoom the canvas to it. */
   onSelectAndCenter: (nodeId: string) => void;
   onRunImpact: () => void;
-  onSimulate: (nodeId: string) => void;
+  onSimulate: (nodeId: string, symbol?: string) => void;
   onNarrate: () => void;
   onImportGitLog: (text: string) => void;
   onAddComponent: (input: { label: string; kind: NodeKind; filePath: string; description: string }) => void;

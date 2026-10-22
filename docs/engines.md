@@ -145,6 +145,16 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Symbol-level coupling (`lib/engines/symbols.ts`)
+
+For TypeScript/JavaScript, each import edge records *which names* the importer actually uses (`symbols`), not just that it imports the file.
+
+- **How:** a lexical scan, not a type checker (TypeScript 7 is a native binary with no in-process compiler API, and a scanner runs identically in the browser, server and CLI). It blanks comments and string contents, parses `import`/`export … from` clauses (default, named, aliased, `type`, namespace, multi-line), then keeps only names that appear as identifiers in the rest of the file. `ns.member` accesses become `member`; passing `ns` itself, or `export *`, becomes `*`.
+- **Unknown stays unknown:** dynamic `import()`, `require()` and side-effect imports leave `symbols` unset, and every consumer treats unset as "uses everything". It never narrows on a guess.
+- **Blast radius:** if the prompt names an export of the origin exactly (`rename verifyToken`), only importers that use it are affected, and the summary says how many were spared. Authored scenarios are unchanged.
+- **Inspector:** each export lists who uses it (and a per-export Simulate button). An export no mapped file uses is flagged; tests and scripts are not mapped, so check them before deleting.
+- **Limits:** a name used only through a re-assigned alias, or hidden behind `export *` chains, can be missed or over-counted; type-only uses count as uses; Python and MATLAB edges carry no symbols.
+
 ## Provenance (`lib/engines/provenance.ts`)
 
 Tests: `tests/provenance.test.ts`. A breadth-first traversal over data flow. Edges point at what a thing depends on (`reads`, `calls`, `imports`), except `writes`, which points from a **producer** to what it produces.
