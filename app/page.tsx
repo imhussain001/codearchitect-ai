@@ -14,6 +14,7 @@ import { CUSTOM_UPLOAD_OPTION, TopNav } from "@/components/TopNav";
 import { useWorkspace, type Notice } from "@/hooks/useWorkspace";
 import { fetchEngine, requestImpact, requestRepoFromFiles, requestRepoFromGithub, requestScaffold, requestStory } from "@/lib/apiClient";
 import { analyzeHealth } from "@/lib/engines/health";
+import { traceProvenance } from "@/lib/engines/provenance";
 import { evaluateRules } from "@/lib/engines/rules";
 import { commitsFromGitLog } from "@/lib/engines/story";
 import { kebabCase } from "@/lib/engines/localScaffold";
@@ -75,11 +76,12 @@ export default function Page() {
   /* ---------- Derived canvas model ---------- */
   const healthReport = useMemo(() => analyzeHealth(graph), [graph]);
   const violations = useMemo(() => evaluateRules(graph), [graph]);
+  const trace = useMemo(() => (state.trace ? traceProvenance(graph, state.trace) : null), [graph, state.trace]);
   const isHealthView = state.activeTab === "health";
   const focusNodeId = state.focusEnabled ? state.selectedNodeId : null;
   const { nodes, edges } = useMemo(
-    () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story, health: isHealthView ? healthReport : null, focusNodeId, selectedNodeId: state.selectedNodeId, violations: isHealthView ? violations : [] }),
-    [graph, state.impact.result, state.story, isHealthView, healthReport, focusNodeId, state.selectedNodeId, violations],
+    () => buildRenderGraph({ graph, impact: state.impact.result, story: state.story, health: isHealthView ? healthReport : null, focusNodeId, selectedNodeId: state.selectedNodeId, violations: isHealthView ? violations : [], trace }),
+    [graph, state.impact.result, state.story, isHealthView, healthReport, focusNodeId, state.selectedNodeId, violations, trace],
   );
 
   /** Select a component and pan/zoom the canvas to it. */
@@ -127,7 +129,9 @@ export default function Page() {
         return;
       }
       if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.key === "/") {
+      if (event.key === "Escape" && state.trace) {
+        dispatch({ type: "setTrace", trace: null });
+      } else if (event.key === "/") {
         event.preventDefault();
         focusSearch();
       } else if (event.key.toLowerCase() === "f") {
@@ -138,7 +142,7 @@ export default function Page() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, tourOpen]);
+  }, [dispatch, tourOpen, state.trace]);
 
   /* ---------- Handlers ---------- */
   const loadGraph = useCallback((next: ArchitectureGraph) => dispatch({ type: "loadGraph", graph: next }), [dispatch]);
@@ -332,6 +336,19 @@ export default function Page() {
               focusEnabled={state.focusEnabled}
               hasSelection={state.selectedNodeId !== null}
               onToggleFocus={() => dispatch({ type: "toggleFocus" })}
+              banner={
+                trace && (
+                  <div className="flex items-center gap-2 self-start rounded-full border border-cyan-500/50 bg-cyan-950/85 py-1 pl-3 pr-1.5 text-xs text-cyan-100 shadow-lg backdrop-blur">
+                    <span>
+                      {trace.mode === "upstream" ? "Where" : "What"} <b>{graph.nodes.find((n) => n.id === trace.nodeId)?.data.label}</b> {trace.mode === "upstream" ? "comes from" : "affects"} ·{" "}
+                      {trace.nodeIds.length - 1} other{trace.nodeIds.length === 2 ? "" : "s"}
+                    </span>
+                    <button type="button" onClick={() => dispatch({ type: "setTrace", trace: null })} className="rounded-full bg-cyan-500/20 px-2 py-0.5 font-medium hover:bg-cyan-500/35">
+                      Clear (Esc)
+                    </button>
+                  </div>
+                )
+              }
               nodes={nodes}
               edges={edges}
               actions={nodeActions}
@@ -342,7 +359,7 @@ export default function Page() {
             />
           </ReactFlowProvider>
 
-          {state.story.enabled && graph.commits[state.story.index] && (
+          {!trace && state.story.enabled && graph.commits[state.story.index] && (
             <div className="pointer-events-none absolute inset-x-0 top-14 flex justify-center">
               <div className="rounded-full border border-violet-500/40 bg-violet-950/80 px-3 py-1 text-xs text-violet-100 backdrop-blur">
                 <span className="font-mono text-violet-300">{graph.commits[state.story.index]!.hash}</span> · {graph.commits[state.story.index]!.phase}
@@ -368,6 +385,8 @@ export default function Page() {
             samplePrompts={SAMPLE_PROMPTS[graph.id] ?? []}
             healthReport={healthReport}
             violations={violations}
+            trace={trace}
+            onTrace={(request) => dispatch({ type: "setTrace", trace: request })}
             onSelectAndCenter={selectAndCenter}
             onRunImpact={() => void runImpact()}
             onSimulate={simulateFrom}

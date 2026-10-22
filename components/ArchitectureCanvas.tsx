@@ -13,7 +13,7 @@ import {
   type NodeChange,
   type NodeTypes,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { CustomNode, NodeActionsContext, type NodeActions } from "@/components/CustomNode";
 import { SearchBox } from "@/components/SearchBox";
 import type { ArchitectureGraph, ArchNode, RenderEdge, RenderNode } from "@/lib/types";
@@ -55,6 +55,8 @@ type Props = {
   focusEnabled: boolean;
   hasSelection: boolean;
   onToggleFocus: () => void;
+  /** Shown under the legends in the top-left column (e.g. the active trace). */
+  banner?: ReactNode;
   nodes: RenderNode[];
   edges: RenderEdge[];
   actions: NodeActions;
@@ -64,7 +66,7 @@ type Props = {
   onRemoveDraftEdge: (edgeId: string) => void;
 };
 
-export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, searchNodes, onSearchSelect, focusEnabled, hasSelection, onToggleFocus, nodes, edges, actions, onNodesChange, onSelectNode, onConnect, onRemoveDraftEdge }: Props) {
+export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, searchNodes, onSearchSelect, focusEnabled, hasSelection, onToggleFocus, banner, nodes, edges, actions, onNodesChange, onSelectNode, onConnect, onRemoveDraftEdge }: Props) {
   const handleEdgesChange = useCallback(
     (changes: EdgeChange<RenderEdge>[]) => {
       for (const change of changes) if (change.type === "remove") onRemoveDraftEdge(change.id);
@@ -136,6 +138,7 @@ export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, search
                 </span>
               ))}
             </div>
+            {banner}
           </div>
         </Panel>
       </ReactFlow>

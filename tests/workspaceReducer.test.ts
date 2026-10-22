@@ -13,6 +13,7 @@ function initial(): WorkspaceState {
     story: { enabled: false, index: 3, isPlaying: false, narrative: null, status: "idle" },
     scaffold: { status: "idle", result: null },
     focusEnabled: false,
+    trace: null,
     notice: null,
   };
 }

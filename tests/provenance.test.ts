@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { describeTrace, traceProvenance, type Trace } from "@/lib/engines/provenance";
 import { authMicroservice, ecommerceApi, powerSystemsMatlab } from "@/lib/mockData";
 import { dataNodeId } from "@/lib/engines/scripts";
+import { analyzeHealth } from "@/lib/engines/health";
+import { analyzeImpactLocally } from "@/lib/engines/localImpact";
+import { workspaceReducer, type WorkspaceState } from "@/hooks/useWorkspace";
+import { buildRenderGraph } from "@/lib/viewModel";
 import type { ArchitectureGraph } from "@/lib/types";
 
 const g = powerSystemsMatlab;
@@ -117,5 +121,45 @@ describe("describeTrace", () => {
 
     expect(describeTrace(g, traceProvenance(g, { nodeId: dataNodeId("nrmse_bar.png"), mode: "downstream" })!).headline).toMatch(/^Nothing else in this map uses nrmse_bar.png/);
     expect(describeTrace(g, traceProvenance(g, { nodeId: dataNodeId("pscad_base.csv"), mode: "upstream" })!).headline).toMatch(/does not come from anything else/);
+  });
+});
+
+describe("trace on the canvas and in state", () => {
+  const base = { graph: g, impact: null, story: { enabled: false, index: 0 } };
+  const trace = traceProvenance(g, { nodeId: dataNodeId("nrmse_bar.png"), mode: "upstream" })!;
+
+  it("numbers the steps, highlights the path and dims everything else", () => {
+    const { nodes, edges } = buildRenderGraph({ ...base, trace });
+    const step = Object.fromEntries(nodes.filter((n) => n.data.traceStep).map((n) => [n.data.label, n.data.traceStep]));
+    expect(step["nrmse_bar.png"]).toBe(trace.nodeIds.length); // the target is the last step
+    expect(Object.keys(step).sort()).toEqual(labels(trace));
+    expect(nodes.filter((n) => n.data.dimmed).map((n) => n.data.label)).toEqual(expect.arrayContaining(["overlay_boundary.png"]));
+    expect(nodes.every((n) => n.data.traced === !n.data.dimmed)).toBe(true);
+    expect(edges.filter((e) => e.data!.isTrace).map((e) => e.id).sort()).toEqual([...trace.edgeIds].sort());
+    expect(edges.find((e) => !e.data!.isTrace)!.style!.opacity).toBeLessThan(0.5);
+  });
+
+  it("suppresses impact and story visuals while tracing, and yields to the health view", () => {
+    const impact = analyzeImpactLocally(g, "Change the CSV column layout of the PSCAD files", null);
+    expect(buildRenderGraph({ ...base, impact, trace }).nodes.every((n) => n.data.status === "normal")).toBe(true);
+
+    const withHealth = buildRenderGraph({ ...base, trace, health: analyzeHealth(g) });
+    expect(withHealth.nodes.some((n) => n.data.traced)).toBe(false);
+    expect(withHealth.nodes.every((n) => n.data.heat)).toBe(true);
+  });
+
+  it("takes over from focus mode", () => {
+    const { nodes } = buildRenderGraph({ ...base, trace, focusNodeId: "load-trace" });
+    expect(nodes.filter((n) => !n.data.dimmed).map((n) => n.data.label).sort()).toEqual(labels(trace));
+  });
+
+  it("is stored in and cleared from workspace state, and reset when a graph loads", () => {
+    const state = workspaceReducer(
+      { graph: g, selectedNodeId: null, activeTab: "inspector", impactPrompt: "", impact: { status: "idle", result: null }, story: { enabled: false, index: 0, isPlaying: false, narrative: null, status: "idle" }, scaffold: { status: "idle", result: null }, focusEnabled: false, trace: null, notice: null } as WorkspaceState,
+      { type: "setTrace", trace: { nodeId: trace.nodeId, mode: "upstream" } },
+    );
+    expect(state.trace).toEqual({ nodeId: trace.nodeId, mode: "upstream" });
+    expect(workspaceReducer(state, { type: "setTrace", trace: null }).trace).toBeNull();
+    expect(workspaceReducer(state, { type: "loadGraph", graph: authMicroservice }).trace).toBeNull();
   });
 });

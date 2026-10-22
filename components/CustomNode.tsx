@@ -64,11 +64,21 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<RenderNode>) {
         status.glow,
         data.status === "proposed" && "border-dashed",
         heat && !selected && heat.ring,
+        data.traced && !selected && "ring-2 ring-cyan-400/80",
         data.dimmed && "opacity-25 saturate-50",
         selected && "ring-2 ring-white/70 ring-offset-2 ring-offset-zinc-950",
       )}
     >
       <Handle type="target" position={Position.Top} />
+
+      {data.traceStep ? (
+        <span
+          className="absolute -left-2 -top-2 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-500 px-1 text-[10px] font-bold text-zinc-950 shadow"
+          title={`Step ${data.traceStep} of the trace`}
+        >
+          {data.traceStep}
+        </span>
+      ) : null}
 
       {data.violations ? (
         <span

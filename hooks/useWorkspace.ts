@@ -3,6 +3,7 @@
 import { applyNodeChanges, type NodeChange } from "@xyflow/react";
 import { useReducer } from "react";
 import { findSample, DEFAULT_REPOSITORY_ID } from "@/lib/mockData";
+import type { TraceRequest } from "@/lib/engines/provenance";
 import type {
   ArchRule,
   ArchitectureGraph,
@@ -28,6 +29,8 @@ export type WorkspaceState = {
   scaffold: { status: AsyncStatus; result: ScaffoldResult | null; error?: string };
   /** Dim everything outside the selected component's direct neighbourhood. */
   focusEnabled: boolean;
+  /** The active provenance trace, if any. */
+  trace: TraceRequest | null;
   notice: Notice | null;
 };
 
@@ -37,6 +40,7 @@ export type WorkspaceAction =
   | { type: "selectNode"; nodeId: string | null }
   | { type: "toggleFocus" }
   | { type: "setRules"; rules: ArchRule[] }
+  | { type: "setTrace"; trace: TraceRequest | null }
   | { type: "setTab"; tab: InspectorTab }
   | { type: "setImpactPrompt"; prompt: string }
   | { type: "impactStarted" }
@@ -71,6 +75,7 @@ function freshState(graph: ArchitectureGraph): WorkspaceState {
     story: { enabled: false, index: Math.max(0, graph.commits.length - 1), isPlaying: false, narrative: null, status: "idle" },
     scaffold: { status: "idle", result: null },
     focusEnabled: false,
+    trace: null,
     notice: graph.warnings?.length ? { tone: "warning", message: graph.warnings.join(" ") } : null,
   };
 }
@@ -105,6 +110,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return { ...state, focusEnabled: !state.focusEnabled };
     case "setRules":
       return withGraph(state, { rules: action.rules });
+    case "setTrace":
+      return { ...state, trace: action.trace };
     case "setTab":
       return { ...state, activeTab: action.tab };
     case "setImpactPrompt":

@@ -10,6 +10,7 @@ import { NodeInspector } from "@/components/inspector/NodeInspector";
 import { StoryPanel } from "@/components/inspector/StoryPanel";
 import type { InspectorTab, WorkspaceAction, WorkspaceState } from "@/hooks/useWorkspace";
 import type { HealthReport } from "@/lib/engines/health";
+import type { Trace, TraceRequest } from "@/lib/engines/provenance";
 import type { NodeKind, RuleViolation } from "@/lib/types";
 
 const TABS: Array<{ id: InspectorTab; label: string; hint: string; icon: LucideIcon }> = [
@@ -26,6 +27,8 @@ type Props = {
   samplePrompts: string[];
   healthReport: HealthReport;
   violations: RuleViolation[];
+  trace: Trace | null;
+  onTrace: (request: TraceRequest | null) => void;
   /** Select a component and pan/zoom the canvas to it. */
   onSelectAndCenter: (nodeId: string) => void;
   onRunImpact: () => void;
@@ -36,7 +39,7 @@ type Props = {
   onGenerateScaffold: () => void;
 };
 
-export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, violations, onSelectAndCenter, ...handlers }: Props) {
+export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, violations, trace, onTrace, onSelectAndCenter, ...handlers }: Props) {
   const { graph, activeTab, selectedNodeId } = state;
   const selectedNode = graph.nodes.find((n) => n.id === selectedNodeId);
 
@@ -72,7 +75,15 @@ export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, v
 
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4">
         {activeTab === "inspector" && (
-          <NodeInspector graph={graph} node={selectedNode} health={selectedNode ? healthReport.nodes[selectedNode.id] : undefined} onSelectNode={onSelectAndCenter} onSimulate={handlers.onSimulate} />
+          <NodeInspector
+            graph={graph}
+            node={selectedNode}
+            health={selectedNode ? healthReport.nodes[selectedNode.id] : undefined}
+            trace={trace}
+            onTrace={(mode) => onTrace(mode && selectedNode ? { nodeId: selectedNode.id, mode } : null)}
+            onSelectNode={onSelectAndCenter}
+            onSimulate={handlers.onSimulate}
+          />
         )}
         {activeTab === "blast" && (
           <BlastRadiusPanel

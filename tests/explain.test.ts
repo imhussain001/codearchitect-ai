@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { explainImpact, explainNode, GLOSSARY } from "@/lib/explain";
 import { analyzeImpactLocally } from "@/lib/engines/localImpact";
-import { authMicroservice } from "@/lib/mockData";
+import { authMicroservice, powerSystemsMatlab } from "@/lib/mockData";
 import type { ImpactAnalysisResult } from "@/lib/types";
 
 describe("explainNode", () => {
@@ -64,5 +64,26 @@ describe("GLOSSARY", () => {
   it("has unique terms with non-empty meanings", () => {
     expect(new Set(GLOSSARY.map((g) => g.term)).size).toBe(GLOSSARY.length);
     expect(GLOSSARY.every((g) => g.meaning.length > 20)).toBe(true);
+  });
+});
+
+describe("explainNode with data flow", () => {
+  const g = powerSystemsMatlab;
+  const idOf = (path: string) => g.nodes.find((n) => n.data.filePath === path)!.id;
+
+  it("says a script writes a file and a file is written by a script, instead of 'uses'", () => {
+    const output = explainNode(g, idOf("nrmse_bar.png"))!;
+    expect(output.bullets[0]).toBe("Nothing else in this map uses it.");
+    expect(output.bullets).toContain("It is written by Make Report.");
+
+    const script = explainNode(g, idOf("make_report.m"))!;
+    expect(script.bullets).toContain("It writes nrmse_bar.png.");
+    expect(script.bullets[1]).toBe("It relies on nrmse_results.csv.");
+  });
+
+  it("keeps readers as users of an intermediate file", () => {
+    const mid = explainNode(g, idOf("nrmse_results.csv"))!;
+    expect(mid.bullets[0]).toBe("1 component uses it directly: Make Report.");
+    expect(mid.bullets).toContain("It is written by Run Study.");
   });
 });
