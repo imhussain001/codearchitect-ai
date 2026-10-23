@@ -16,6 +16,7 @@ const files: Record<string, string> = {
 type Handler = (...args: unknown[]) => unknown;
 const state = {
   commands: new Map<string, Handler>(),
+  lensSelector: null as unknown,
   lens: null as null | { provideCodeLenses(doc: unknown): Array<{ range: { start: { line: number } }; command: { title: string; command: string; arguments: unknown[] } }> },
   status: { text: "", tooltip: undefined as unknown, command: undefined as unknown, shown: false },
   activeEditor: undefined as unknown,
@@ -158,7 +159,8 @@ vi.mock("vscode", () => {
       },
     },
     languages: {
-      registerCodeLensProvider: (_sel: unknown, provider: typeof state.lens) => {
+      registerCodeLensProvider: (sel: unknown, provider: typeof state.lens) => {
+        state.lensSelector = sel;
         state.lens = provider;
         return disposable;
       },
@@ -338,5 +340,13 @@ describe("status bar click option", () => {
     state.config = { statusBarClick: "banana" };
     state.configChanged!({ affectsConfiguration: () => true });
     expect(state.status.command).toBe("codearchitect.showBlastRadius");
+  });
+});
+
+describe("CodeLens languages", () => {
+  it("covers Python along with the other mapped languages", async () => {
+    await start();
+    const languages = (state.lensSelector as Array<{ language: string }>).map((s) => s.language);
+    expect(languages).toEqual(expect.arrayContaining(["typescript", "javascript", "go", "java", "rust", "python"]));
   });
 });

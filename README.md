@@ -39,7 +39,7 @@ Three sample projects are built in (*E-Commerce API*, *Auth Microservice*, and a
 | Language | What is mapped | Symbol-level links | Notes |
 |---|---|---|---|
 | TypeScript / JavaScript | `import`, `require`, dynamic `import()`, re-exports; `@/` and `~/` aliases | Yes (names each file uses from another) | Type-only imports are kept for rules and blast radius, ignored by health |
-| Python | `import x`, `from x import y`, plus the data files each script reads and writes | No | Data-flow graph, see [Research code](docs/research-scripts.md) |
+| Python | Imports by name (`from a import B` → the file defining `B`), `from pkg import module`, relative and aliased imports, plus the data files each script reads and writes | Yes | Deferred (in-function) and `TYPE_CHECKING` imports are not reported as cycles; data-flow graph, see [Research code](docs/research-scripts.md) |
 | MATLAB | Function calls between `.m` files, plus the data files each script reads and writes | No | Data-flow graph, see [Research code](docs/research-scripts.md) |
 | Go | Imports resolved to the files declaring the exported names used; same-package use | Yes | Module path inferred from the imports |
 | Java | Imports (explicit, static, wildcard) and same-package use | Types | Controllers, configuration and `*Application` classes are entry points |

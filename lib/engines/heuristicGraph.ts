@@ -3,6 +3,7 @@ import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
 import { goEdges, goExports, goImports } from "@/lib/engines/goImports";
 import { javaEdges, javaExports, javaImports } from "@/lib/engines/javaImports";
 import { rustEdges, rustExports, rustUses } from "@/lib/engines/rustImports";
+import { parseImports as parsePythonImports, pythonEdges, pythonExports } from "@/lib/engines/pythonImports";
 import { importedSymbols } from "@/lib/engines/symbols";
 import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, SourceFile } from "@/lib/types";
 
@@ -33,9 +34,7 @@ export function isAnalyzableSource(path: string): boolean {
 }
 
 const JS_IMPORT = /(?:import\s[^'"]*?from\s*|import\s*\(\s*|require\s*\(\s*|export\s[^'"]*?from\s*)['"]([^'"]+)['"]/g;
-const PY_IMPORT = /^\s*(?:from\s+([.\w]+)\s+import|import\s+([.\w]+))/gm;
 const JS_EXPORT = /export\s+(default\s+)?(?:async\s+)?(?:function\*?|const|let|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)/g;
-const PY_EXPORT = /^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm;
 const FIRST_SIGNATURE = /(?:function\s+\w+|func\s+\w+|fn\s+\w+|def\s+\w+|\w+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)/;
 
 /**
@@ -58,10 +57,11 @@ export function extractImports(file: SourceFile): string[] {
   if (file.path.endsWith(".go")) return [...new Set(goImports(file.content).map((i) => i.path))];
   if (file.path.endsWith(".rs")) return [...new Set(rustUses(file.content).map((u) => u.segments.join("::")))];
   if (file.path.endsWith(".java")) return [...new Set(javaImports(file.content).map((i) => i.name + (i.wildcard ? ".*" : "")))];
+  if (file.path.endsWith(".py")) return [...new Set(parsePythonImports(file.content).map((i) => "." .repeat(i.level) + i.module).filter(Boolean))];
   const specs = new Set<string>();
-  const pattern = file.path.endsWith(".py") ? PY_IMPORT : JS_IMPORT;
+  const pattern = JS_IMPORT;
   for (const match of file.content.matchAll(pattern)) {
-    const spec = match[1] ?? match[2];
+    const spec = match[1];
     if (spec) specs.add(spec);
   }
   return [...specs];
@@ -72,9 +72,7 @@ export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".go")) return goExports(file.content);
   if (file.path.endsWith(".java")) return javaExports(file.content);
   if (file.path.endsWith(".rs")) return rustExports(file.content);
-  if (file.path.endsWith(".py")) {
-    return [...file.content.matchAll(PY_EXPORT)].map((m) => m[1]!).filter((n) => !n.startsWith("_"));
-  }
+  if (file.path.endsWith(".py")) return pythonExports(file.content);
   return [...new Set([...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!)))];
 }
 
@@ -194,7 +192,8 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
   const seen = new Set<string>();
   for (const file of selected) {
     const typeOnly = typeOnlyImports(file);
-    const symbolsBySpec = hasOwnImportAnalysis(file.path) ? null : importedSymbols(file.content);
+    if (hasOwnImportAnalysis(file.path)) continue;
+    const symbolsBySpec = importedSymbols(file.content);
     const edgeByTarget = new Map<string, DependencyEdge>();
     for (const spec of extractImports(file)) {
       const targetPath = resolveImport(file.path, spec, index);
@@ -220,6 +219,13 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
 
   // Go: importer → the files that define the exported names it uses.
   for (const edge of goEdges(selected, idForPath, name)) {
+    if (seen.has(edge.id)) continue;
+    seen.add(edge.id);
+    edges.push(edge);
+  }
+
+  // Python: imports by name (`from a import B` links to the file defining B).
+  for (const edge of pythonEdges(selected, idForPath)) {
     if (seen.has(edge.id)) continue;
     seen.add(edge.id);
     edges.push(edge);

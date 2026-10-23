@@ -58,7 +58,7 @@ This is advisory (it never fails the check), and it tells reviewers which CSVs a
 1. **Comments and strings are removed first**, so a file name inside a comment is never a dependency. MATLAB `%`, `%{ … %}` and `...` and Python `#` and triple-quoted docstrings are handled; MATLAB's `'` is told apart from the transpose operator.
 2. **Data files** are found from string literals that end in a data or output extension (`csv tsv mat xlsx xls txt dat json h5 parquet pkl npy npz xml`, and `png jpg pdf svg eps fig`), including names kept in cell arrays or struct fields. A reference is a **write** when its line contains a write call (`writetable`, `save`, `exportgraphics`, `to_csv`, `savefig`, `fopen(..., 'w')`, …), a **read** otherwise. A file both read and written counts as written.
 3. **MATLAB function calls** are matched by name: a file's name is a callable, and a whole-word use of another file's name in code (not after a `.`, not shadowed by a local function) is a call.
-4. **Python** modules are linked through `import x` and `from x import y` (resolved to files in the project), and their data files are found as above.
+4. **Python** imports are followed **by name**: `from cosim_app.state import AppState` links to the file that defines `AppState`, `from cosim_app import state` links to `cosim_app/state.py` with the attributes used through it, relative imports (`from ..x import y`) and `import a.b as x` are resolved, and a file's details list who uses each function, class or constant it defines. Imports inside a function or under `if TYPE_CHECKING:` are marked as deferred, so a deliberate cycle-breaker is not reported as a cycle. Data files are found as above.
 5. **Descriptions** come from each file's header comment, **exports** from `function` definitions, **parameters** from the first signature.
 
 The full algorithm, including the layer rules and the data-node cap, is in [Analysis engines](engines.md#script-data-flow-mapper-libenginesscriptsts) and [Provenance](engines.md#provenance-libenginesprovenancets).
@@ -67,7 +67,7 @@ The full algorithm, including the layer rules and the data-node cap, is in [Anal
 
 - **Names built at run time** (`['pscad_' lvl '.csv']`, `f"{name}.csv"`, `*.csv`) cannot be resolved; they are shown as *patterns*, not files.
 - **Contents are never read.** A `.mat` file's variables, a CSV's columns, and cell-array indexing are invisible, so *which column* a script uses is not tracked (the sample's authored scenario exists to show exactly that gap).
-- **MATLAB calls are by name only.** Method calls on objects, `feval`/function handles and calls through `eval` are not followed. Python function calls inside a module are not tracked; cross-module links come from imports.
+- **MATLAB calls are by name only.** Method calls on objects, `feval`/function handles and calls through `eval` are not followed. Python calls inside one module are not tracked, and a name reached only through attribute access on an object (`obj.method()`) is not linked; cross-module links come from imports.
 - **At most 40 data nodes** are shown; the rest are grouped into "+N more data files".
 - **Absolute and network paths, URLs and unknown extensions** are ignored.
 - **Simulation tools** (PSCAD/PSS/E case files, Simulink models) are not parsed; only the scripts around them and the data files they exchange.

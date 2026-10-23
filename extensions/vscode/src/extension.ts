@@ -8,7 +8,7 @@ import { ArchIndex, type FileRef, type WorkspaceFile } from "./core";
  * the core (unit-tested without an editor).
  */
 
-const LANGUAGES = ["typescript", "typescriptreact", "javascript", "javascriptreact", "go", "java", "rust"];
+const LANGUAGES = ["typescript", "typescriptreact", "javascript", "javascriptreact", "go", "java", "rust", "python"];
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,go,java,rs,py,m}";
 const EXCLUDE_GLOB = "**/{node_modules,dist,build,out,.next,.git,target,vendor,venv,.venv,__pycache__,coverage}/**";
 const MAX_FILE_BYTES = 200 * 1024;
