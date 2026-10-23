@@ -53,14 +53,14 @@ export function TopNav(props: Props) {
   const { graph, samples, importedGraph, engine } = props;
 
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/80 px-4 py-2.5 backdrop-blur-xl">
+    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-zinc-800/80 bg-zinc-950/80 px-3 py-2 backdrop-blur-xl sm:gap-3 sm:px-4 sm:py-2.5">
       <div className="flex items-center gap-2.5">
         <div className="rounded-lg bg-gradient-to-br from-violet-500 to-sky-500 p-1.5 shadow-lg shadow-violet-900/40">
           <Network className="h-4 w-4 text-white" />
         </div>
         <div className="leading-tight">
           <h1 className="text-sm font-semibold tracking-tight text-zinc-50">CodeArchitect AI</h1>
-          <p className="text-[10px] text-zinc-500">Dependency maps · blast radius · time machine</p>
+          <p className="hidden text-[10px] text-zinc-500 sm:block">Dependency maps · blast radius · time machine</p>
         </div>
       </div>
 
@@ -109,8 +109,8 @@ export function TopNav(props: Props) {
       </span>
 
       <div className="flex items-center gap-2 text-[11px] text-zinc-500" aria-live="polite">
-        {props.saveStatus === "saving" && <span>Saving…</span>}
-        {props.saveStatus === "saved" && <span title="Your edits are stored in this browser only">Saved in this browser</span>}
+        {props.saveStatus === "saving" && <span className="hidden sm:inline">Saving…</span>}
+        {props.saveStatus === "saved" && <span className="hidden sm:inline" title="Your edits are stored in this browser only">Saved in this browser</span>}
         {props.saveStatus === "unavailable" && <span className="text-amber-400/80" title="Browser storage is unavailable, so edits will not survive a reload">Not saving</span>}
         {props.isEdited && (
           <button type="button" onClick={props.onReset} title="Discard your edits and return to the original" className="flex items-center gap-1 rounded-md border border-zinc-700 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-500 hover:text-white">
@@ -121,10 +121,12 @@ export function TopNav(props: Props) {
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <NavButton tone="red" tour="simulate" title="Describe a change and see what it would break" active={props.isImpactActive} onClick={props.onSimulate}>
-          <Radar className="h-3.5 w-3.5" /> Simulate Blast Radius
+          <Radar className="h-3.5 w-3.5" /> <span className="sm:hidden">Simulate</span>
+          <span className="hidden sm:inline">Simulate Blast Radius</span>
         </NavButton>
         <NavButton tone="violet" tour="story" title="Replay how the architecture evolved, commit by commit" active={props.isStoryOn} onClick={props.onToggleStory}>
-          <History className="h-3.5 w-3.5" /> Toggle Time-Machine Story
+          <History className="h-3.5 w-3.5" /> <span className="sm:hidden">Story</span>
+          <span className="hidden sm:inline">Toggle Time-Machine Story</span>
         </NavButton>
         <ExportMenu busy={props.exporting} onExport={props.onExport} />
         <NavButton tone="zinc" tour="help" title="Show the guided tour (?)" onClick={props.onHelp}>

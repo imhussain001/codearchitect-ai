@@ -119,7 +119,7 @@ export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, search
             const data = (n as RenderNode).data;
             return (data.heat ? HEALTH_META[data.heat.level].hex : undefined) ?? MINIMAP_STATUS_COLORS[data.status] ?? KIND_META[data.kind].hex;
           }}
-          className="!rounded-lg !border !border-zinc-800"
+          className="!hidden !rounded-lg !border !border-zinc-800 sm:!block"
         />
         <CenterController request={centerRequest} />
         <Panel position="top-left">
@@ -127,10 +127,10 @@ export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, search
             <SearchBox nodes={searchNodes} onSelect={onSearchSelect} focusEnabled={focusEnabled} hasSelection={hasSelection} onToggleFocus={onToggleFocus} />
           </div>
           <div data-tour="legend" className="mt-1.5 flex max-w-[min(100%,38rem)] flex-col gap-1.5">
-            <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-1.5 text-[11px] text-zinc-400 backdrop-blur" title="Colour = what the component is for">
+            <div className="flex max-w-full gap-x-3 gap-y-1 overflow-x-auto whitespace-nowrap rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-1.5 text-[11px] text-zinc-400 backdrop-blur sm:flex-wrap sm:overflow-visible sm:whitespace-normal" title="Colour = what the component is for">
               {legend}
             </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-1.5 text-[11px] text-zinc-400 backdrop-blur" title="Glow = what a simulated change does to it">
+            <div className="hidden flex-wrap gap-x-3 gap-y-1 rounded-lg border border-zinc-800 bg-zinc-950/80 px-3 py-1.5 text-[11px] text-zinc-400 backdrop-blur sm:flex" title="Glow = what a simulated change does to it">
               {(["broken", "impacted", "modified", "proposed"] as const).map((s) => (
                 <span key={s} className="flex items-center gap-1.5">
                   <span className={`h-2 w-2 rounded-full ${STATUS_META[s].dot}`} />
