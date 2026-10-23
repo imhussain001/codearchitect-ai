@@ -24,11 +24,15 @@ The map is built locally from your workspace files and re-built shortly after yo
 
 ## Build and install
 
-From the repository root:
+From the repository root (after `npm install`):
 
 ```bash
 npm run ext:package
 code --install-extension extensions/vscode/codearchitect.vsix
 ```
 
-`ext:package` bundles the extension and packs it with `@vscode/vsce` (fetched on demand). To try it without installing, open `extensions/vscode` in VS Code after `npm run ext:build` and press F5.
+Or, in VS Code, open the **Extensions** view, click the **`…`** menu, choose **Install from VSIX…** and pick `extensions/vscode/codearchitect.vsix`. Then reload the window and open a source file: the status bar shows `N files affected`.
+
+`ext:package` bundles the extension and packs it with `@vscode/vsce` (fetched on demand). To try it without installing, run `npm run ext:build`, open `extensions/vscode` in VS Code and press F5.
+
+Full instructions, update and uninstall commands and troubleshooting: [docs/vscode-extension.md](https://github.com/imhussain001/codearchitect-ai/blob/main/docs/vscode-extension.md).

@@ -19,20 +19,68 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | 🤖 | **Pull-request check** | `codearchitect pr --base main` (or the bundled GitHub workflow) reports what a change does to the architecture: new cycles, broken rules, health change and blast radius. It comments on the PR and fails the check on new problems. |
 | 🔎 | **Search & focus** | Find a component by name, path or symbol and jump to it. Focus mode dims everything except the selected component and its direct neighbours. |
 | 🎓 | **Easy to understand** | A guided tour on first visit, "In plain words" summaries of every component and analysis (with an effort estimate and order of work), tooltips and a glossary. |
-| 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write. |
+| 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write, laid out in pipeline order (entry scripts → analysis → plots → data files). Pair it with the **Provenance trace** below to answer *"which scripts and inputs produced this figure?"* and *"what goes stale if I change this file?"*; pull requests list the output files that need re-running. See [Research code](docs/research-scripts.md). |
 | 🧬 | **Provenance trace** | Select any component and trace **where it comes from** (the scripts, functions and raw input files behind a figure or result, across pipeline stages) or **what it affects** (every result that would be out of date if an input changed). The path is numbered on the map and explained in plain words. |
-| 🧩 | **VS Code extension** | `extensions/vscode`: the status bar shows how many files a change to the active file affects, CodeLens shows `used by N files` above each export, and a command lists exactly who uses a symbol (importers that don't use it are spared). Build with `npm run ext:package`. |
+| 🧩 | **VS Code extension** | `extensions/vscode`: the status bar shows how many files a change to the active file affects, CodeLens shows `used by N files` above each export, and a command lists exactly who uses a symbol (importers that don't use it are spared). Install steps [below](#install-the-vs-code-extension). |
 | 📉 | **Architecture drift** | `npm run cli -- history .` re-analyses sampled commits and reports whether health, cycles and rule violations are improving or declining, with the commits that made it worse. `npm run view -- . --history` shows the same chart in the Story tab. |
 | 🔗 | **Shareable page** | **Export → Shareable page**, or `npm run cli -- share <folder>`, writes one self-contained `.html` file (no server, no network) with a pan/zoom diagram, search, the reading-order guide and per-component code, uses and used-by. Attach it to a PR, email it, or publish it from CI. |
 | 🧭 | **Guide (new here?)** | The first inspector tab explains an unfamiliar codebase: the shape in one sentence, the most-used components, what to read carefully before changing, and a numbered reading order. Next/Previous steps through it on the canvas. The same "Where to start" section opens the Markdown report. |
 | 🦀 | **Rust** | Maps Rust crates through their module tree: `use crate::a::B`, `self::`, `super::`, nested `use a::{b, c::D}` groups, globs and workspace crates resolve to the file defining the module, with the imported items as symbols. `main.rs`, `lib.rs` and `src/bin/*` are entry points. |
 | ☕ | **Java** | Maps Java projects: an import links a class to the file that declares it, wildcard and static imports are followed, and classes in one package that use each other are linked without an import. Controllers, configuration and `*Application` classes count as entry points; test classes are skipped. |
 | 🐹 | **Go** | Maps Go modules: each import links a file to the files that define the exported names it uses (`auth.VerifyToken` → the file declaring it), so blast radius is symbol-precise. `cmd/` and `main.go` count as entry points. |
-| 🔬 | **Symbol-level impact** | For TypeScript/JavaScript, see which *functions and types* each file uses from another. Simulating a change to one export only flags the files that use it, and unused exports are called out. |
+| 🎯 | **Symbol-level impact** | For TypeScript/JavaScript, see which *functions and types* each file uses from another. Simulating a change to one export only flags the files that use it, and unused exports are called out. |
 | 📦 | **Import / export** | Import a repository from a ZIP or a GitHub URL. Export the diagram (PNG/SVG, matching what is on screen), a Mermaid file, a Markdown architecture report, the graph JSON, or every component's code plus a manifest that restores the exact graph. |
 | 💾 | **Autosave** | Edits (drafts, applied changes, rules, imports) are saved in this browser a moment after you make them and restored on reload. **Reset** returns to the original. |
 
 Three sample projects are built in (*E-Commerce API*, *Auth Microservice*, and a *Power-Systems Study* written in MATLAB). The app also ships a map of **its own codebase** in `public/samples/`; load it via **Custom Upload…** to explore how this project is put together.
+
+## Supported languages
+
+| Language | What is mapped | Symbol-level links | Notes |
+|---|---|---|---|
+| TypeScript / JavaScript | `import`, `require`, dynamic `import()`, re-exports; `@/` and `~/` aliases | Yes (names each file uses from another) | Type-only imports are kept for rules and blast radius, ignored by health |
+| Python | `import x`, `from x import y`, plus the data files each script reads and writes | No | Data-flow graph, see [Research code](docs/research-scripts.md) |
+| MATLAB | Function calls between `.m` files, plus the data files each script reads and writes | No | Data-flow graph, see [Research code](docs/research-scripts.md) |
+| Go | Imports resolved to the files declaring the exported names used; same-package use | Yes | Module path inferred from the imports |
+| Java | Imports (explicit, static, wildcard) and same-package use | Types | Controllers, configuration and `*Application` classes are entry points |
+| Rust | `use` paths through the module tree, workspace crates | Items | `main.rs`, `lib.rs`, `src/bin/*` are entry points |
+
+All of it is lexical analysis (no type checker or compiler), so the map shows where to look rather than proving what breaks. Per-language rules and limits are in [Analysis engines](docs/engines.md).
+
+## Research code (MATLAB and Python)
+
+Analysis scripts are mapped as a **data flow**, not just an import web:
+
+- **Entry scripts** (nothing calls them), the **functions** they call, **plots**, and every **data file** (CSV, MAT, Excel, JSON, HDF5, NumPy, images) a script reads or writes, as nodes of their own.
+- **Where it comes from / What it affects** (Inspector → Trace) numbers the path from raw inputs to a figure, or highlights every result that goes stale when an input changes, across pipeline stages.
+- **Pull requests** get a line listing the output files that may be out of date and need re-running.
+- Everything else works too: health grade, rules, reading-order Guide, shareable page, history over time.
+
+Try it: pick **Power-Systems Study (MATLAB)** in the repository selector, click `nrmse_results.csv`, and press **Where it comes from**. To map your own project, run `npm run view -- C:\path\to\your\project` or use **Custom Upload…**. Full guide, algorithm and limits (run-time-built file names, column-level use, simulation case files): [docs/research-scripts.md](docs/research-scripts.md).
+
+## Install the VS Code extension
+
+The extension shows, inside VS Code, how many files a change to the current file affects (status bar), `used by N files` above each export (CodeLens), and a command that lists exactly who uses a symbol. It is built from this repository and runs entirely locally. You need Node.js 20+ and VS Code 1.85+.
+
+**1. Build the package** (in the project folder, after `npm install`):
+
+```bash
+npm run ext:package
+```
+
+This creates `extensions/vscode/codearchitect.vsix`.
+
+**2. Install it** with either:
+
+```bash
+code --install-extension extensions/vscode/codearchitect.vsix
+```
+
+or in VS Code: open the **Extensions** view (`Ctrl+Shift+X`), click the **`…`** menu, choose **Install from VSIX…**, and pick `extensions/vscode/codearchitect.vsix`.
+
+**3. Check it:** reload the window, open a folder with TypeScript, JavaScript, Go, Java or Rust code, and open a file. The status bar shows `N files affected`, and `Ctrl+Shift+P` → `CodeArchitect` lists four commands. To update, run both commands again with `--force`; to remove: `code --uninstall-extension imhussain001.codearchitect-vscode`.
+
+Settings, troubleshooting (`'code' is not recognized`, no status-bar item) and development mode: [docs/vscode-extension.md](docs/vscode-extension.md).
 
 ## Quick start
 
@@ -42,8 +90,8 @@ Requires [Node.js](https://nodejs.org) 20 or newer. Check with `node --version`.
 
 | Where you start | Command |
 |---|---|
-| Windows Command Prompt | `cd /d E:codearchitect-ai` (the `/d` switches drive as well as folder) |
-| Windows PowerShell | `cd E:codearchitect-ai` |
+| Windows Command Prompt | `cd /d E:\codearchitect-ai` (the `/d` switches drive as well as folder) |
+| Windows PowerShell | `cd E:\codearchitect-ai` |
 | macOS / Linux | `cd path/to/codearchitect-ai` |
 
 **2. Install, once** (and again after pulling new changes):
@@ -164,7 +212,8 @@ flowchart LR
 | [Architecture](docs/architecture.md) | Layers, data flow, state model, key design decisions |
 | [API reference](docs/api.md) | Every route: request, response, errors, limits |
 | [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, health scoring, script data-flow, search ranking, diff, repo mapping, git parsing, scaffolding |
-| [VS Code extension](extensions/vscode/README.md) | What the extension shows, its settings and limits, and how to build and install it |
+| [VS Code extension](docs/vscode-extension.md) | What the extension shows, how to build and install it (command line or from the window), settings, troubleshooting |
+| [Research code](docs/research-scripts.md) | MATLAB and Python data-flow mapping: layers, provenance, stale outputs in pull requests, how scripts are read, limits |
 | [Rules, CLI and CI](docs/cli-and-ci.md) | Writing rules, the `analyze` and `pr` commands, exit codes, and the GitHub workflow |
 | [Graph format](docs/graph-format.md) | The `codearchitect/v1` JSON manifest, for building your own graphs |
 | [Development guide](docs/development.md) | Project layout, testing, adding samples and scenarios, Next.js 16 notes |

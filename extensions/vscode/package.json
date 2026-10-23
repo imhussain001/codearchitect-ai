@@ -5,17 +5,41 @@
   "version": "0.1.0",
   "publisher": "imhussain001",
   "private": true,
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Visualization", "Other"],
-  "keywords": ["architecture", "dependencies", "blast radius", "impact analysis"],
-  "activationEvents": ["onStartupFinished"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "architecture",
+    "dependencies",
+    "blast radius",
+    "impact analysis"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      { "command": "codearchitect.showBlastRadius", "title": "CodeArchitect: Show blast radius of this file" },
-      { "command": "codearchitect.showUsers", "title": "CodeArchitect: Who uses this symbol?" },
-      { "command": "codearchitect.exportShare", "title": "CodeArchitect: Export shareable architecture page" },
-      { "command": "codearchitect.refresh", "title": "CodeArchitect: Re-map the workspace" }
+      {
+        "command": "codearchitect.showBlastRadius",
+        "title": "CodeArchitect: Show blast radius of this file"
+      },
+      {
+        "command": "codearchitect.showUsers",
+        "title": "CodeArchitect: Who uses this symbol?"
+      },
+      {
+        "command": "codearchitect.exportShare",
+        "title": "CodeArchitect: Export shareable architecture page"
+      },
+      {
+        "command": "codearchitect.refresh",
+        "title": "CodeArchitect: Re-map the workspace"
+      }
     ],
     "configuration": {
       "title": "CodeArchitect",
@@ -33,5 +57,10 @@
         }
       }
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imhussain001/codearchitect-ai.git",
+    "directory": "extensions/vscode"
   }
 }

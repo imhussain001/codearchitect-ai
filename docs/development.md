@@ -34,11 +34,14 @@ lib/
   graphSchema.ts           shared zod schema
   viewModel.ts             render overlay
   apiClient.ts, portability.ts, export.ts, persistence.ts, ui.ts
-  engines/                 localImpact, story, heuristicGraph, localScaffold, zip
+  engines/                 localImpact, story, heuristicGraph, localScaffold, zip, scripts (MATLAB/Python),
+                           symbols, goImports, javaImports, rustImports, provenance, guide, drift, health, rules
+  share.ts, preload.ts     single-file shareable page; graph handed over by `codearchitect view`
   server/                  analyzers, schemas, respond, github  (server-only)
   server/ai/               provider config, Anthropic + OpenAI-compatible adapters, JSON repair
   mock/, mockData.ts       sample repositories
-scripts/build-self-graph.mjs
+scripts/                   build-self-graph.mjs, build-cli.mjs, build-extension.mjs, cli/main.ts
+extensions/vscode/         the VS Code extension (src/core.ts is editor-independent; src/extension.ts is the adapter)
 public/samples/            generated self-graph
 tests/                     Vitest suites
 docs/
@@ -57,6 +60,9 @@ npm run test:live    # score real models (opt-in; calls provider APIs)
 npm run build:cli    # bundle the CLI to dist/cli/codearchitect.mjs
 npm run cli -- analyze .            # health + rules of this repo
 npm run cli -- pr --base main       # architecture check of this branch vs main
+npm run cli -- history .            # health over time
+npm run view -- <folder>            # map a folder and open it in the app
+npm run ext:package                 # build the VS Code extension -> extensions/vscode/codearchitect.vsix
 ```
 
 `npm test` exits non-zero if any test *file* fails to load, not only if a test fails: check the exit code (or the "Test Files" line), not just "Tests … passed". The opt-in live suite is excluded from it.

@@ -214,7 +214,7 @@ Note the difference from impact analysis: blast radius follows *code coupling* (
 
 ## Script data-flow mapper (`lib/engines/scripts.ts`)
 
-Tests: `tests/scripts.test.ts`. Maps MATLAB (`.m`) and Python (`.py`) analysis code. Runs inside the heuristic mapper whenever scripts are present.
+Tests: `tests/scripts.test.ts`. Maps MATLAB (`.m`) and Python (`.py`) analysis code. Runs inside the heuristic mapper whenever scripts are present. A user-facing walkthrough (what you see, how to try it on the MATLAB sample, stale outputs in pull requests, limits) is in [Research code](research-scripts.md); this section is the algorithm. Python module-to-module links come from the heuristic mapper's `import` handling; this mapper adds the data files and, for MATLAB, the function calls.
 
 1. **Lexer.** One pass per file removes comments (`%`, `%{ … %}`, `...`, `#`), blanks string contents and collects string literals. MATLAB's `'` is a string only when not directly after an identifier, `)`, `]`, `}`, `.` or `'` (otherwise it is the transpose operator); `''` is an escaped quote. Python triple-quoted strings (docstrings) are skipped.
 2. **Data files.** Every literal with a data extension (`csv tsv mat xlsx xls txt dat json h5 parquet pkl npy npz xml …`) or an output extension (`png jpg pdf svg eps fig …`) is a reference. It is a **write** when its line has a write call (`writetable`, `save`, `exportgraphics`, `to_csv`, `savefig`, …) or an `fopen`/`open` in write mode; images default to writes unless a read call is on the line; otherwise it is a **read**. A file both read and written counts as written. This works for names kept in cell arrays or struct fields, as real scripts do. Names built at run time (`_base.csv`, `%s.csv`, `*.csv`) are flagged as patterns.

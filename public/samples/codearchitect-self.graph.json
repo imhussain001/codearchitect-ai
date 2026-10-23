@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-23T06:36:56.961Z",
+  "exportedAt": "2026-10-23T06:42:58.439Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -3642,6 +3642,16 @@
           "health-engine",
           "heuristic-graph"
         ]
+      },
+      {
+        "hash": "9dda75f",
+        "author": "imhussain001",
+        "date": "2026-10-23",
+        "message": "feat(vscode): add an extension that shows blast radius in the editor",
+        "phase": "Phase 51 · add an extension that shows blast radius in the editor",
+        "narrative": "feat(vscode): add an extension that shows blast radius in the editor. Touches 0 mapped component(s).",
+        "addedNodeIds": [],
+        "modifiedNodeIds": []
       }
     ],
     "scenarios": [
