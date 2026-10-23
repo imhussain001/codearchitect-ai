@@ -1,10 +1,11 @@
 "use client";
 
 import clsx from "clsx";
-import { Activity, FileSearch, History, Radar, Wand2, type LucideIcon } from "lucide-react";
+import { Activity, Compass, FileSearch, History, Radar, Wand2, type LucideIcon } from "lucide-react";
 import type { Dispatch } from "react";
 import { BlastRadiusPanel } from "@/components/inspector/BlastRadiusPanel";
 import { BuilderPanel } from "@/components/inspector/BuilderPanel";
+import { GuidePanel } from "@/components/inspector/GuidePanel";
 import { HealthPanel } from "@/components/inspector/HealthPanel";
 import { NodeInspector } from "@/components/inspector/NodeInspector";
 import { StoryPanel } from "@/components/inspector/StoryPanel";
@@ -14,6 +15,7 @@ import type { Trace, TraceRequest } from "@/lib/engines/provenance";
 import type { NodeKind, RuleViolation } from "@/lib/types";
 
 const TABS: Array<{ id: InspectorTab; label: string; hint: string; icon: LucideIcon }> = [
+  { id: "guide", label: "Guide", hint: "New here? A reading order for this codebase", icon: Compass },
   { id: "inspector", label: "Inspector", hint: "Code and details of the selected component", icon: FileSearch },
   { id: "blast", label: "Blast Radius", hint: "Simulate a change and see what it breaks", icon: Radar },
   { id: "health", label: "Health", hint: "Find fragile, tangled or oversized parts", icon: Activity },
@@ -74,6 +76,7 @@ export function InspectorPanel({ state, dispatch, samplePrompts, healthReport, v
       </div>
 
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4">
+        {activeTab === "guide" && <GuidePanel graph={graph} selectedNodeId={selectedNodeId} onSelectAndCenter={onSelectAndCenter} />}
         {activeTab === "inspector" && (
           <NodeInspector
             graph={graph}
