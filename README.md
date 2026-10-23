@@ -43,6 +43,7 @@ Three sample projects are built in (*E-Commerce API*, *Auth Microservice*, and a
 | MATLAB | Function calls between `.m` files, plus the data files each script reads and writes | No | Data-flow graph, see [Research code](docs/research-scripts.md) |
 | Go | Imports resolved to the files declaring the exported names used; same-package use | Yes | Module path inferred from the imports |
 | Java | Imports (explicit, static, wildcard) and same-package use | Types | Controllers, configuration and `*Application` classes are entry points |
+| C# | `using` namespaces, the namespace a file is in, `global using`, `using static`, aliases and written-out names, linked to the types a file actually mentions; extension-method classes | Types | Program.cs, Startup.cs and controllers are entry points; test projects, `obj/`, `bin/Debug`, `*.g.cs`, `*.Designer.cs` and AssemblyInfo are skipped |
 | Rust | `use` paths through the module tree, workspace crates | Items | `main.rs`, `lib.rs`, `src/bin/*` are entry points |
 
 All of it is lexical analysis (no type checker or compiler), so the map shows where to look rather than proving what breaks. Per-language rules and limits are in [Analysis engines](docs/engines.md).
@@ -114,7 +115,7 @@ npm run dev
 - `Cannot find module …`: run `npm install` (step 2).
 - Port already in use: run `npm run dev -- --port 3100`.
 
-**Map your own project:** with the app stopped, run `npm run view -- C:\path\to\your\project` (any folder with TypeScript, JavaScript, Java, Rust, Go, MATLAB or Python). It analyses the folder, starts the app and opens your browser with that project loaded. Stop the usual `npm run dev` first: one app instance can only show one folder.
+**Map your own project:** with the app stopped, run `npm run view -- C:\path\to\your\project` (any folder with TypeScript, JavaScript, Java, C#, Rust, Go, MATLAB or Python). It analyses the folder, starts the app and opens your browser with that project loaded. Stop the usual `npm run dev` first: one app instance can only show one folder.
 
 **Try it:**
 

@@ -1,5 +1,6 @@
 import { layoutByKind, SCRIPT_LAYER_ORDER } from "@/lib/graph";
 import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
+import { csExports, csharpEdges, csUsings } from "@/lib/engines/csharpImports";
 import { goEdges, goExports, goImports } from "@/lib/engines/goImports";
 import { javaEdges, javaExports, javaImports } from "@/lib/engines/javaImports";
 import { rustEdges, rustExports, rustTestOnlyPaths, rustUses } from "@/lib/engines/rustImports";
@@ -16,14 +17,16 @@ const NON_SOURCE_ASSETS = /(^|\/)src\/site\/|\.min\.(js|mjs)$/i;
 const JAVA_TESTS = /[a-z0-9](Test|Tests|IT)\.java$/;
 /** Java files that declare no types: documentation and module descriptors. */
 const JAVA_NON_CODE = /(^|\/)(package|module)-info\.java$/;
+/** C# build output, generated code, assembly info and test projects. Case-sensitive on purpose. */
+const CS_NON_SOURCE = /(^|\/)(obj|bin\/(Debug|Release))\/|\.(Designer|g|g\.i|generated)\.cs$|(^|\/)[^/]*AssemblyInfo[^/]*\.cs$|\.Tests?(\.\w+)*\/|[a-z0-9](Test|Tests)\.cs$/;
 const CONFIG_FILES = /(^|\/)[^/]*(config|rc)\.(c|m)?(js|ts)$/i;
 
 export const MAX_GRAPH_FILES = 60;
 const MAX_NODE_CODE_LINES = 120;
 
 const KIND_RULES: Array<{ kind: NodeKind; pattern: RegExp }> = [
-  { kind: "data", pattern: /(Repository|Dao|Entity)\.java$|(^|\/)(db|database|models?|schemas?|prisma|repositor(y|ies)|migrations?|cache|redis|entities|dal|store)(\/|\.|_|$)/i },
-  { kind: "api", pattern: /(Controller|Resource|Endpoint)\.java$|(^|\/)(api|routes?|routers?|endpoints?|handlers?|urls\.py|views\.py)(\/|\.|$)|route\.(t|j)s$/i },
+  { kind: "data", pattern: /(Repository|Dao|Entity|DbContext)\.(java|cs)$|(^|\/)Migrations\/|(^|\/)(db|database|models?|schemas?|prisma|repositor(y|ies)|migrations?|cache|redis|entities|dal|store)(\/|\.|_|$)/i },
+  { kind: "api", pattern: /(Controller|Resource|Endpoint|Hub)\.(java|cs)$|(^|\/)(api|routes?|routers?|endpoints?|handlers?|urls\.py|views\.py)(\/|\.|$)|route\.(t|j)s$/i },
   { kind: "frontend", pattern: /\.(tsx|jsx|vue|svelte)$|(^|\/)(components|pages|screens|ui|views|app\/.*page)(\/|\.|$)/i },
 ];
 
@@ -32,7 +35,7 @@ export function classifyPath(path: string): NodeKind {
 }
 
 export function isAnalyzableSource(path: string): boolean {
-  return SOURCE_EXTENSIONS.test(path) && !IGNORED_PATHS.test(path) && !CONFIG_FILES.test(path) && !JAVA_TESTS.test(path) && !JAVA_NON_CODE.test(path) && !NON_SOURCE_ASSETS.test(path);
+  return SOURCE_EXTENSIONS.test(path) && !IGNORED_PATHS.test(path) && !CONFIG_FILES.test(path) && !JAVA_TESTS.test(path) && !JAVA_NON_CODE.test(path) && !NON_SOURCE_ASSETS.test(path) && !CS_NON_SOURCE.test(path);
 }
 
 const JS_IMPORT = /(?:import\s[^'"]*?from\s*|import\s*\(\s*|require\s*\(\s*|export\s[^'"]*?from\s*)['"]([^'"]+)['"]/g;
@@ -44,7 +47,7 @@ const FIRST_SIGNATURE = /(?:function\s+\w+|func\s+\w+|fn\s+\w+|def\s+\w+|\w+\s*=
  * Type-only imports are erased at runtime, so they are not architectural coupling.
  */
 export function typeOnlyImports(file: SourceFile): Set<string> {
-  if (/\.(py|m|go|java|rs)$/.test(file.path)) return new Set();
+  if (/\.(py|m|go|java|rs|cs)$/.test(file.path)) return new Set();
   const typeSpecs = new Set<string>();
   const valueSpecs = new Set<string>();
   for (const match of file.content.matchAll(JS_IMPORT)) {
@@ -57,6 +60,7 @@ export function typeOnlyImports(file: SourceFile): Set<string> {
 
 export function extractImports(file: SourceFile): string[] {
   if (file.path.endsWith(".go")) return [...new Set(goImports(file.content).map((i) => i.path))];
+  if (file.path.endsWith(".cs")) return [...new Set(csUsings(file.content).map((u) => (u.isStatic ? "static " : "") + u.namespace))];
   if (file.path.endsWith(".rs")) return [...new Set(rustUses(file.content).map((u) => u.segments.join("::")))];
   if (file.path.endsWith(".java")) return [...new Set(javaImports(file.content).map((i) => i.name + (i.wildcard ? ".*" : "")))];
   if (file.path.endsWith(".py")) return [...new Set(parsePythonImports(file.content).map((i) => "." .repeat(i.level) + i.module).filter(Boolean))];
@@ -91,6 +95,7 @@ export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".go")) return goExports(file.content);
   if (file.path.endsWith(".java")) return javaExports(file.content);
   if (file.path.endsWith(".rs")) return rustExports(file.content);
+  if (file.path.endsWith(".cs")) return csExports(file.content);
   if (file.path.endsWith(".py")) return pythonExports(file.content);
   return [...new Set([...[...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!)), ...listedExports(file.content)])];
 }
@@ -109,10 +114,10 @@ function extractParams(file: SourceFile): CodeParam[] {
 }
 
 /** Files whose imports are analysed by their own language module instead of the JS/TS symbol scanner. */
-const hasOwnImportAnalysis = (path: string) => /\.(py|m|go|java|rs)$/i.test(path);
+const hasOwnImportAnalysis = (path: string) => /\.(py|m|go|java|rs|cs)$/i.test(path);
 
 function stripExtension(path: string): string {
-  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|vue|svelte|m)$/i, "").replace(/\/index$/, "");
+  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|cs|vue|svelte|m)$/i, "").replace(/\/index$/, "");
 }
 
 function joinPath(base: string, relative: string): string {
@@ -241,6 +246,13 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
 
   // Go: importer → the files that define the exported names it uses.
   for (const edge of goEdges(selected, idForPath, name)) {
+    if (seen.has(edge.id)) continue;
+    seen.add(edge.id);
+    edges.push(edge);
+  }
+
+  // C#: namespaces and the types mentioned from them.
+  for (const edge of csharpEdges(selected, idForPath)) {
     if (seen.has(edge.id)) continue;
     seen.add(edge.id);
     edges.push(edge);
