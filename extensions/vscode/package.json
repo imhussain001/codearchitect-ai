@@ -2,9 +2,18 @@
   "name": "codearchitect-vscode",
   "displayName": "CodeArchitect: Blast Radius",
   "description": "See what a change to this file can break: dependents in the status bar, per-symbol usage CodeLens, and a shareable architecture page.",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#18181b",
+    "theme": "dark"
+  },
   "version": "0.1.0",
   "publisher": "imhussain001",
-  "private": true,
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Hussain Tak",
+    "url": "https://github.com/imhussain001"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -60,8 +69,14 @@
       "properties": {
         "codearchitect.statusBarClick": {
           "type": "string",
-          "enum": ["list", "map"],
-          "enumDescriptions": ["Clicking \"N files affected\" shows the list of affected files.", "Clicking \"N files affected\" opens the architecture map beside the code."],
+          "enum": [
+            "list",
+            "map"
+          ],
+          "enumDescriptions": [
+            "Clicking \"N files affected\" shows the list of affected files.",
+            "Clicking \"N files affected\" opens the architecture map beside the code."
+          ],
           "default": "list",
           "description": "What clicking the status bar item does. The other one stays available from the Command Palette."
         },
@@ -88,5 +103,10 @@
     "type": "git",
     "url": "https://github.com/imhussain001/codearchitect-ai.git",
     "directory": "extensions/vscode"
-  }
+  },
+  "homepage": "https://github.com/imhussain001/codearchitect-ai#readme",
+  "bugs": {
+    "url": "https://github.com/imhussain001/codearchitect-ai/issues"
+  },
+  "preview": true
 }
