@@ -64,6 +64,8 @@ npm run cli -- analyze .                       # health + rules of a folder
 npm run cli -- pr --base main                  # what this branch does to the architecture
 ```
 
+Every command that maps code accepts **`--max-files N`** (default 500, from 20 to 2,000): how many files to map. If a folder has more, the most architecturally relevant files are kept. A bigger map is slower to open in the app; the CLI itself handles 2,000 files in well under a second.
+
 `npm run cli` bundles `scripts/cli/main.ts` with esbuild into `dist/cli/codearchitect.mjs` (one file, no dependencies) and runs it. You can also run the bundle directly: `node dist/cli/codearchitect.mjs …`.
 
 ### `analyze [dir]`

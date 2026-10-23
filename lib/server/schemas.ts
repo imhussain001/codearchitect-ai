@@ -1,5 +1,6 @@
 import "server-only";
 import * as z from "zod/v4";
+import { MAX_MAPPABLE_FILES, MIN_MAPPED_FILES } from "@/lib/engines/heuristicGraph";
 import { GraphSchema } from "@/lib/graphSchema";
 
 /* ---------- Request validation (untrusted client input) ---------- */
@@ -18,12 +19,16 @@ export const StoryRequestSchema = z.object({ graph: GraphSchema });
 
 export const ScaffoldRequestSchema = z.object({ graph: GraphSchema });
 
+/** How many files the local engine may map; optional, defaults to the engine's own limit. */
+const MaxFilesSchema = z.number().int().min(MIN_MAPPED_FILES).max(MAX_MAPPABLE_FILES).optional();
+
 export const AnalyzeRepoRequestSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("github"), url: z.string().url().max(300) }),
+  z.object({ kind: z.literal("github"), url: z.string().url().max(300), maxFiles: MaxFilesSchema }),
   z.object({
     kind: z.literal("files"),
     name: shortText,
     files: z.array(z.object({ path: z.string().max(400), content: z.string().max(400_000) })).min(1).max(5_000),
+    maxFiles: MaxFilesSchema,
   }),
 ]);
 
