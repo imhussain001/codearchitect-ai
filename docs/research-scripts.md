@@ -28,6 +28,7 @@ The layers are laid out in pipeline order: entry scripts first, then analysis co
 |---|---|
 | Look at a project on your disk | `npm run view -- C:\path\to\your\project` (maps the folder and opens the app) |
 | Upload a project in the browser | **Custom Upload…** and drop a `.zip` of the folder |
+| See it next to your code in VS Code | Install the [extension](vscode-extension.md) and run **CodeArchitect: Show architecture map**. It shows the same data-flow map and trace in a tab beside the editor, and follows the file you have open |
 | Share it with a colleague | **Export → Shareable page** (or `npm run cli -- share <folder>`): one `.html` file with the map, trace-ready details and a reading order |
 | Check a pull request | `npm run cli -- pr --base main` or the bundled GitHub workflow (see below) |
 | See whether it is getting messier | `npm run cli -- history .` |
