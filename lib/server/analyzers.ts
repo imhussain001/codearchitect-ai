@@ -1,7 +1,7 @@
 import "server-only";
 import { collectDependents, layoutByKind, nodeById } from "@/lib/graph";
 import { computeRiskScore } from "@/lib/engines/localImpact";
-import { selectGraphFiles, truncateCode } from "@/lib/engines/heuristicGraph";
+import { MAX_AI_FILES, selectGraphFiles, truncateCode } from "@/lib/engines/heuristicGraph";
 import { getGenerator } from "@/lib/server/ai";
 import { describeProvider as describeGenerator } from "@/lib/server/ai/config";
 import { AiImpactSchema, AiIngestSchema, AiScaffoldSchema, AiStorySchema } from "@/lib/server/schemas";
@@ -160,7 +160,7 @@ function packSources(files: readonly SourceFile[], budgetChars: number): { packe
 
 export async function ingestWithAi(name: string, files: readonly SourceFile[]): Promise<ArchitectureGraph> {
   const generator = getGenerator();
-  const { selected, warnings } = selectGraphFiles(files);
+  const { selected, warnings } = selectGraphFiles(files, MAX_AI_FILES);
   const { packed, omitted } = packSources(selected, generator.config.maxInputChars);
   if (omitted > 0) {
     warnings.push(

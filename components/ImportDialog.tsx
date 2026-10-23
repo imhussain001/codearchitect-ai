@@ -3,20 +3,22 @@
 import clsx from "clsx";
 import { FileArchive, GitBranch, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { clampMaxFiles, MAX_GRAPH_FILES, MAX_MAPPABLE_FILES, MIN_MAPPED_FILES } from "@/lib/engines/heuristicGraph";
 
 type Props = {
   open: boolean;
   isBusy: boolean;
   error: string | null;
   onClose: () => void;
-  onUploadFile: (file: File) => void;
-  onGithubUrl: (url: string) => void;
+  onUploadFile: (file: File, maxFiles: number) => void;
+  onGithubUrl: (url: string, maxFiles: number) => void;
 };
 
 export function ImportDialog({ open, isBusy, error, onClose, onUploadFile, onGithubUrl }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [url, setUrl] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [maxFiles, setMaxFiles] = useState(MAX_GRAPH_FILES);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -52,7 +54,7 @@ export function ImportDialog({ open, isBusy, error, onClose, onUploadFile, onGit
             e.preventDefault();
             setIsDragging(false);
             const file = e.dataTransfer.files[0];
-            if (file && !isBusy) onUploadFile(file);
+            if (file && !isBusy) onUploadFile(file, clampMaxFiles(maxFiles));
           }}
           className={clsx(
             "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition",
@@ -70,7 +72,7 @@ export function ImportDialog({ open, isBusy, error, onClose, onUploadFile, onGit
             disabled={isBusy}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) onUploadFile(file);
+              if (file) onUploadFile(file, clampMaxFiles(maxFiles));
               e.target.value = "";
             }}
           />
@@ -84,7 +86,7 @@ export function ImportDialog({ open, isBusy, error, onClose, onUploadFile, onGit
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (url.trim() && !isBusy) onGithubUrl(url.trim());
+            if (url.trim() && !isBusy) onGithubUrl(url.trim(), clampMaxFiles(maxFiles));
           }}
         >
           <div className="flex flex-1 items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 focus-within:border-violet-500">
@@ -102,6 +104,27 @@ export function ImportDialog({ open, isBusy, error, onClose, onUploadFile, onGit
             Analyze
           </button>
         </form>
+
+        <div className="space-y-1">
+          <label className="flex items-center justify-between gap-3 text-xs text-zinc-400">
+            Map up to
+            <span className="flex items-center gap-2">
+              <input
+                type="number"
+                min={MIN_MAPPED_FILES}
+                max={MAX_MAPPABLE_FILES}
+                step={50}
+                value={maxFiles}
+                onChange={(e) => setMaxFiles(Number(e.target.value))}
+                onBlur={() => setMaxFiles(clampMaxFiles(maxFiles))}
+                disabled={isBusy}
+                className="w-20 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-right text-zinc-100 focus:border-violet-500 focus:outline-none"
+              />
+              files
+            </span>
+          </label>
+          <p className="text-[11px] leading-snug text-zinc-600">The most relevant files are kept. A bigger map takes longer to draw ({MAX_MAPPABLE_FILES.toLocaleString()} at most). With an AI model configured, grouping into components uses at most 60 files.</p>
+        </div>
 
         {isBusy && (
           <p className="flex items-center gap-2 text-xs text-zinc-400">

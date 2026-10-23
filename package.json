@@ -1,6 +1,11 @@
 {
   "name": "codearchitect-ai",
   "version": "0.1.0",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Hussain Tak",
+    "url": "https://github.com/imhussain001"
+  },
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,8 +18,12 @@
     "test:live": "vitest run --config vitest.live.config.ts",
     "models": "node scripts/list-models.mjs",
     "build:cli": "node scripts/build-cli.mjs",
+    "notices": "node scripts/third-party-notices.mjs",
     "ext:build": "node scripts/build-extension.mjs",
-    "ext:package": "npm run ext:build --silent && cd extensions/vscode && npx --yes @vscode/vsce package --no-dependencies --skip-license --allow-missing-repository -o codearchitect.vsix",
+    "ext:icon": "node scripts/make-extension-icon.mjs",
+    "ext:check": "vitest run tests/extensionPublishReady.test.ts tests/vscodeManifest.test.ts tests/license.test.ts && npm run ext:package --silent",
+    "ext:publish": "npm run ext:check --silent && cd extensions/vscode && npx --yes @vscode/vsce publish --no-dependencies",
+    "ext:package": "npm run ext:build --silent && cd extensions/vscode && npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository -o codearchitect.vsix",
     "view": "npm run build:cli --silent && node dist/cli/codearchitect.mjs view",
     "cli": "npm run build:cli --silent && node dist/cli/codearchitect.mjs"
   },
