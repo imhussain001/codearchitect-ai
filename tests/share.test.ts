@@ -63,6 +63,14 @@ describe("renderShareHtml", () => {
 });
 
 describe("client script", () => {
+  it("has the blast-radius highlight and the VS Code bridge, and the bridge is inert without VS Code", () => {
+    const html = renderShareHtml(authMicroservice);
+    expect(html).toContain("imp-direct");
+    expect(html).toContain("Open in editor");
+    // acquireVsCodeApi is only called behind a typeof check, so a plain browser never throws.
+    expect(html).toContain("typeof acquireVsCodeApi === 'function'");
+  });
+
   it("is valid JavaScript", () => {
     const html = renderShareHtml(authMicroservice);
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);

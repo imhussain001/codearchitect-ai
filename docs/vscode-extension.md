@@ -8,7 +8,8 @@ The extension puts the blast radius of the file you are editing into VS Code, so
 |---|---|
 | **Status bar** (left) | `N files affected`: files that use the active file directly or indirectly. Hover for the layer, direct and indirect counts, change-risk (0 to 100) and what drives it. A risky file turns the item amber. Click it for the list. |
 | **CodeLens** above each export | `used by N files`, `may be used by N files` (usage could not be narrowed) or `no other file uses this`. Click it to open the list of files. TypeScript, JavaScript, Go, Java and Rust. |
-| **Command Palette** | `CodeArchitect: Show blast radius of this file`, `CodeArchitect: Who uses this symbol?`, `CodeArchitect: Export shareable architecture page`, `CodeArchitect: Re-map the workspace`. |
+| **Architecture map** (graph) | `CodeArchitect: Show architecture map` opens the interactive graph in a tab beside your code, like the web app's canvas: pan and zoom, search, a reading order, and a details panel per file. It follows the file you have open: that file is selected, files that depend on it directly glow amber, indirect ones glow lighter, and unrelated files dim. **Open in editor** in the details panel opens the file; the *Hide/Highlight what depends on this* button toggles the glow. |
+| **Command Palette** | `CodeArchitect: Show architecture map`, `CodeArchitect: Show blast radius of this file`, `CodeArchitect: Who uses this symbol?`, `CodeArchitect: Export shareable architecture page`, `CodeArchitect: Re-map the workspace`. |
 
 **Who uses this symbol?** is the symbol-level version: pick a symbol (or place the cursor on one) and the list shows the files that use it, the files affected through them, and a third group, *Import the file but do not use it*, which a rename does not touch.
 
@@ -49,7 +50,7 @@ code --install-extension extensions/vscode/codearchitect.vsix
 1. Reload the window if VS Code asks you to (`Developer: Reload Window`).
 2. In the Extensions view, search for **CodeArchitect**; it should be listed as installed.
 3. Open a folder that contains TypeScript, JavaScript, Go, Java or Rust code and open one of its files.
-4. After a moment the status bar shows `N files affected`. Open the Command Palette (`Ctrl+Shift+P`) and type `CodeArchitect` to see the four commands.
+4. After a moment the status bar shows `N files affected`. Open the Command Palette (`Ctrl+Shift+P`) and type `CodeArchitect` to see the five commands; run **CodeArchitect: Show architecture map** to see the graph.
 
 The first mapping happens at startup, and again shortly after you save, create or delete a source file. **View → Output → CodeArchitect** shows how long it took and how many files were mapped.
 
@@ -88,7 +89,7 @@ code --uninstall-extension imhussain001.codearchitect-vscode
 ## Limits
 
 - The analysis is lexical (no type checker), so it shows where to look rather than proving what breaks.
-- Python and MATLAB files are mapped for the shareable page but have no CodeLens; use the web app's data-flow view for those ([Research code](research-scripts.md)).
+- Python and MATLAB files appear in the map and the status bar, but have no CodeLens, and Python imports are not tracked by name. For their data flow (which scripts produce which files) use the web app: `npm run view -- <folder>` ([Research code](research-scripts.md)).
 - The extension is verified against a fake VS Code API in the test suite; try it on a real project and report anything odd.
 
 ## For contributors

@@ -32,7 +32,8 @@ export function activate(context: vscode.ExtensionContext): void {
   let index: ArchIndex | null = null;
   let building = false;
   let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
-  context.subscriptions.push(log, status, lensChanged);
+  let panel: vscode.WebviewPanel | undefined;
+  context.subscriptions.push(log, status, lensChanged, { dispose: () => panel?.dispose() });
 
   /* ---------- Indexing ---------- */
 
@@ -74,7 +75,41 @@ export function activate(context: vscode.ExtensionContext): void {
     } finally {
       building = false;
       updateStatus();
+      renderPanel();
     }
+  }
+
+  /* ---------- Map panel ---------- */
+
+  /** The page reloads whenever the map is rebuilt; it asks for the current file again once it is ready. */
+  function renderPanel(): void {
+    if (panel && index) panel.webview.html = renderShareHtml(index.graph);
+  }
+
+  /** Tell the map which file is open, so it selects it and highlights what depends on it. */
+  function postFocus(): void {
+    const file = activeFile();
+    if (panel && index && file && index.nodeFor(file.rel)) void panel.webview.postMessage({ type: "focus", path: file.rel });
+  }
+
+  function showGraph(): void {
+    if (!index) return void vscode.window.showInformationMessage("CodeArchitect is still mapping the workspace.");
+    if (panel) {
+      panel.reveal(vscode.ViewColumn.Beside, true);
+      return postFocus();
+    }
+    panel = vscode.window.createWebviewPanel("codearchitect.map", "CodeArchitect map", { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true });
+    panel.onDidDispose(() => (panel = undefined), null, context.subscriptions);
+    panel.webview.onDidReceiveMessage(
+      async (message: { type?: string; path?: string }) => {
+        if (message.type === "ready") return postFocus();
+        // Only paths that are part of the map can be opened, whatever the page asks for.
+        if (message.type === "open" && typeof message.path === "string" && index?.nodeFor(message.path)) await openRef({ path: message.path, label: "", depth: 0 });
+      },
+      null,
+      context.subscriptions,
+    );
+    renderPanel();
   }
 
   const scheduleRebuild = () => {
@@ -98,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): void {
     md.appendMarkdown(`${plural(summary.dependents, "file")} use it directly, ${summary.indirectDependents} more indirectly. It uses ${summary.dependencies}.\n\n`);
     md.appendMarkdown(`Change-risk **${summary.risk}/100** (${summary.level})${summary.reasons.length ? `: ${summary.reasons.join(", ")}` : ""}.\n\n`);
     if (index.skipped > 0) md.appendMarkdown(`_${plural(index.skipped, "file")} over the ${readSettings().maxFiles}-file limit are not mapped (setting: codearchitect.maxFiles)._\n\n`);
-    md.appendMarkdown("Click for the list.");
+    md.appendMarkdown("Click for the list. Command Palette: _CodeArchitect: Show architecture map_ for the graph.");
     status.tooltip = md;
     status.backgroundColor = summary.level === "risky" ? new vscode.ThemeColor("statusBarItem.warningBackground") : undefined;
     status.show();
@@ -189,6 +224,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (choice === open) await vscode.env.openExternal(target);
     }),
 
+    vscode.commands.registerCommand("codearchitect.showGraph", showGraph),
+
     vscode.commands.registerCommand("codearchitect.refresh", () => rebuild()),
 
     vscode.languages.registerCodeLensProvider(LANGUAGES.map((language) => ({ language, scheme: "file" })), {
@@ -205,7 +242,10 @@ export function activate(context: vscode.ExtensionContext): void {
       },
     }),
 
-    vscode.window.onDidChangeActiveTextEditor(updateStatus),
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      updateStatus();
+      postFocus();
+    }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (doc.uri.scheme === "file" && LANGUAGES.includes(doc.languageId)) scheduleRebuild();
     }),
