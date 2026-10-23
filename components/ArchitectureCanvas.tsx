@@ -66,6 +66,9 @@ type Props = {
   onRemoveDraftEdge: (edgeId: string) => void;
 };
 
+/** Above this many components the canvas renders only what is in view. */
+const ONLY_RENDER_VISIBLE_ABOVE = 250;
+
 export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, searchNodes, onSearchSelect, focusEnabled, hasSelection, onToggleFocus, banner, nodes, edges, actions, onNodesChange, onSelectNode, onConnect, onRemoveDraftEdge }: Props) {
   const handleEdgesChange = useCallback(
     (changes: EdgeChange<RenderEdge>[]) => {
@@ -102,6 +105,8 @@ export function ArchitectureCanvas({ graphKey, kindLabels, centerRequest, search
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         fitView
+        // Past a few hundred components only the ones on screen are drawn, which keeps big maps responsive.
+        onlyRenderVisibleElements={nodes.length > ONLY_RENDER_VISIBLE_ABOVE}
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
         maxZoom={2}

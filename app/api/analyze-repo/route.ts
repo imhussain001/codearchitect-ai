@@ -1,4 +1,4 @@
-import { buildHeuristicGraph } from "@/lib/engines/heuristicGraph";
+import { buildHeuristicGraph, MAX_GRAPH_FILES } from "@/lib/engines/heuristicGraph";
 import { extractSourceFiles } from "@/lib/engines/zip";
 import { ingestWithAi } from "@/lib/server/analyzers";
 import { downloadRepoArchive, parseGithubUrl } from "@/lib/server/github";
@@ -29,5 +29,5 @@ export async function POST(request: Request) {
   }
   if (files.length === 0) return fail("No supported source files found in the archive.", 422);
 
-  return runWithFallback(() => ingestWithAi(name, files), () => buildHeuristicGraph(name, files));
+  return runWithFallback(() => ingestWithAi(name, files), () => buildHeuristicGraph(name, files, { maxFiles: body.data.maxFiles ?? MAX_GRAPH_FILES }));
 }

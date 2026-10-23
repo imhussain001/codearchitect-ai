@@ -117,11 +117,13 @@ AI results are filtered so that `files` cover only draft nodes and `diffs` only 
 
 Maps a repository into an `ArchitectureGraph`.
 
+`maxFiles` (optional, whole number 20–2,000, default 400) is how many files the **local engine** maps; the most relevant are kept. With an AI model configured, grouping uses at most 60 files regardless.
+
 **Request**, one of:
 
 ```ts
-{ kind: "github"; url: string }   // https://github.com/owner/repo[/tree/<ref>]
-{ kind: "files";  name: string; files: Array<{ path: string; content: string }> }
+{ kind: "github"; url: string; maxFiles?: number }   // https://github.com/owner/repo[/tree/<ref>]
+{ kind: "files";  name: string; files: Array<{ path: string; content: string }>; maxFiles?: number }
 ```
 
 For `github`, the server downloads `api.github.com/repos/{owner}/{repo}/zipball[/{ref}]`. The request has a 30 s timeout, archives over 50 MB are rejected, and `GITHUB_TOKEN` is used when set.
