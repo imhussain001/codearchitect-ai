@@ -23,7 +23,7 @@ const WATCH_FROM = 35;
 const RISKY_FROM = 65;
 
 /** Files nothing imports by design: framework entry points, scripts and config. */
-const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|main\.go|(main|lib|build)\.rs|src\/bin\/[^/]+\.rs|[^/]*(Application|Main|App|Controller|Configuration|Config)\.java|(Program|Startup)\.cs|[^/]*(Controller|Hub)\.cs|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
+const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|main\.go|(main|lib|build)\.rs|src\/bin\/[^/]+\.rs|[^/]*(Application|Main|App|Controller|Configuration|Config)\.java|[^/]*(Application|Main|App|Controller|Activity)\.kt|main\.kt|(Program|Startup)\.cs|[^/]*(Controller|Hub)\.cs|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
 const ENTRY_DIR = /(^|\/)(scripts?|bin|cli|cmd)\//i;
 
 export function isLikelyEntryPoint(filePath: string): boolean {

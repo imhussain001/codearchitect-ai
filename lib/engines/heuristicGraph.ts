@@ -3,6 +3,7 @@ import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
 import { csExports, csharpEdges, csUsings } from "@/lib/engines/csharpImports";
 import { goEdges, goExports, goImports } from "@/lib/engines/goImports";
 import { javaEdges, javaExports, javaImports } from "@/lib/engines/javaImports";
+import { kotlinEdges, ktExports, ktImports } from "@/lib/engines/kotlinImports";
 import { rustEdges, rustExports, rustTestOnlyPaths, rustUses } from "@/lib/engines/rustImports";
 import { parseImports as parsePythonImports, pythonEdges, pythonExports } from "@/lib/engines/pythonImports";
 import { importedSymbols } from "@/lib/engines/symbols";
@@ -19,6 +20,8 @@ const JAVA_TESTS = /[a-z0-9](Test|Tests|IT)\.java$/;
 const JAVA_NON_CODE = /(^|\/)(package|module)-info\.java$/;
 /** C# build output, generated code, assembly info and test projects. Case-sensitive on purpose. */
 const CS_NON_SOURCE = /(^|\/)(obj|bin\/(Debug|Release))\/|\.(Designer|g|g\.i|generated)\.cs$|(^|\/)[^/]*AssemblyInfo[^/]*\.cs$|\.Tests?(\.\w+)*\/|[a-z0-9](Test|Tests)\.cs$/;
+/** Kotlin test sources and build scripts. Case-sensitive on purpose. */
+const KT_NON_SOURCE = /(^|\/)src\/(test|androidTest|jvmTest|commonTest|integrationTest)[^/]*\/|[a-z0-9](Test|Tests|IT)\.kt$|\.kts$/;
 const CONFIG_FILES = /(^|\/)[^/]*(config|rc)\.(c|m)?(js|ts)$/i;
 
 export const MAX_GRAPH_FILES = 60;
@@ -35,7 +38,7 @@ export function classifyPath(path: string): NodeKind {
 }
 
 export function isAnalyzableSource(path: string): boolean {
-  return SOURCE_EXTENSIONS.test(path) && !IGNORED_PATHS.test(path) && !CONFIG_FILES.test(path) && !JAVA_TESTS.test(path) && !JAVA_NON_CODE.test(path) && !NON_SOURCE_ASSETS.test(path) && !CS_NON_SOURCE.test(path);
+  return SOURCE_EXTENSIONS.test(path) && !IGNORED_PATHS.test(path) && !CONFIG_FILES.test(path) && !JAVA_TESTS.test(path) && !JAVA_NON_CODE.test(path) && !NON_SOURCE_ASSETS.test(path) && !CS_NON_SOURCE.test(path) && !KT_NON_SOURCE.test(path);
 }
 
 const JS_IMPORT = /(?:import\s[^'"]*?from\s*|import\s*\(\s*|require\s*\(\s*|export\s[^'"]*?from\s*)['"]([^'"]+)['"]/g;
@@ -47,7 +50,7 @@ const FIRST_SIGNATURE = /(?:function\s+\w+|func\s+\w+|fn\s+\w+|def\s+\w+|\w+\s*=
  * Type-only imports are erased at runtime, so they are not architectural coupling.
  */
 export function typeOnlyImports(file: SourceFile): Set<string> {
-  if (/\.(py|m|go|java|rs|cs)$/.test(file.path)) return new Set();
+  if (/\.(py|m|go|java|rs|cs|kt)$/.test(file.path)) return new Set();
   const typeSpecs = new Set<string>();
   const valueSpecs = new Set<string>();
   for (const match of file.content.matchAll(JS_IMPORT)) {
@@ -61,6 +64,7 @@ export function typeOnlyImports(file: SourceFile): Set<string> {
 export function extractImports(file: SourceFile): string[] {
   if (file.path.endsWith(".go")) return [...new Set(goImports(file.content).map((i) => i.path))];
   if (file.path.endsWith(".cs")) return [...new Set(csUsings(file.content).map((u) => (u.isStatic ? "static " : "") + u.namespace))];
+  if (file.path.endsWith(".kt")) return [...new Set(ktImports(file.content).map((i) => i.name + (i.wildcard ? ".*" : "")))];
   if (file.path.endsWith(".rs")) return [...new Set(rustUses(file.content).map((u) => u.segments.join("::")))];
   if (file.path.endsWith(".java")) return [...new Set(javaImports(file.content).map((i) => i.name + (i.wildcard ? ".*" : "")))];
   if (file.path.endsWith(".py")) return [...new Set(parsePythonImports(file.content).map((i) => "." .repeat(i.level) + i.module).filter(Boolean))];
@@ -96,6 +100,7 @@ export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".java")) return javaExports(file.content);
   if (file.path.endsWith(".rs")) return rustExports(file.content);
   if (file.path.endsWith(".cs")) return csExports(file.content);
+  if (file.path.endsWith(".kt")) return ktExports(file.content);
   if (file.path.endsWith(".py")) return pythonExports(file.content);
   return [...new Set([...[...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!)), ...listedExports(file.content)])];
 }
@@ -114,10 +119,10 @@ function extractParams(file: SourceFile): CodeParam[] {
 }
 
 /** Files whose imports are analysed by their own language module instead of the JS/TS symbol scanner. */
-const hasOwnImportAnalysis = (path: string) => /\.(py|m|go|java|rs|cs)$/i.test(path);
+const hasOwnImportAnalysis = (path: string) => /\.(py|m|go|java|rs|cs|kt)$/i.test(path);
 
 function stripExtension(path: string): string {
-  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|cs|vue|svelte|m)$/i, "").replace(/\/index$/, "");
+  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|cs|kt|vue|svelte|m)$/i, "").replace(/\/index$/, "");
 }
 
 function joinPath(base: string, relative: string): string {
@@ -253,6 +258,13 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
 
   // C#: namespaces and the types mentioned from them.
   for (const edge of csharpEdges(selected, idForPath)) {
+    if (seen.has(edge.id)) continue;
+    seen.add(edge.id);
+    edges.push(edge);
+  }
+
+  // Kotlin: imports by qualified name or top-level declaration, plus same-package use.
+  for (const edge of kotlinEdges(selected, idForPath)) {
     if (seen.has(edge.id)) continue;
     seen.add(edge.id);
     edges.push(edge);
