@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { GitCommitHorizontal, History, Loader2, Pause, Play, SkipBack, SkipForward, Sparkles, Upload } from "lucide-react";
 import { useState } from "react";
+import { DriftSection } from "@/components/inspector/DriftSection";
 import type { AsyncStatus } from "@/hooks/useWorkspace";
 import type { ArchitectureGraph, StoryNarrative } from "@/lib/types";
 
@@ -70,6 +71,7 @@ export function StoryPanel(props: Props) {
           <History className="h-8 w-8 text-zinc-600" />
           <p className="text-sm">No commit history for this repository yet.</p>
         </div>
+        {graph.drift && <DriftSection drift={graph.drift} />}
         <GitLogImporter onImport={props.onImportGitLog} defaultOpen />
       </div>
     );
@@ -172,6 +174,7 @@ export function StoryPanel(props: Props) {
         })}
       </ol>
 
+      {graph.drift && <DriftSection drift={graph.drift} />}
       <GitLogImporter onImport={props.onImportGitLog} defaultOpen={false} />
     </div>
   );

@@ -188,6 +188,22 @@ export type RuleViolation = {
   edgeIds: string[];
 };
 
+export type DriftPoint = {
+  hash: string;
+  message: string;
+  author: string;
+  /** ISO date. */
+  date: string;
+  components: number;
+  dependencies: number;
+  /** Health score 0–100 (higher is healthier) and its letter grade. */
+  score: number;
+  grade: string;
+  cycles: number;
+  /** Rule violations, not counting loops already counted as cycles. */
+  violations: number;
+};
+
 export type ArchitectureGraph = {
   id: string;
   name: string;
@@ -202,6 +218,8 @@ export type ArchitectureGraph = {
   kindLabels?: Partial<Record<NodeKind, string>>;
   /** Notes produced during ingestion (skipped files, truncation, heuristics used). */
   warnings?: string[];
+  /** Health measured at sampled commits, oldest first (added by `codearchitect view --history`). */
+  drift?: DriftPoint[];
 };
 
 export type ScaffoldFile = {

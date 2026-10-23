@@ -2,10 +2,12 @@
  * CodeArchitect command line: architecture health, rules and pull-request blast radius.
  *
  *   codearchitect analyze [dir]                       health + rules of the working tree
- *   codearchitect view [dir] [--port N] [--no-open]   (map a folder and open it in the app)
+ *   codearchitect view [dir] [--port N] [--no-open] [--history]   (map a folder and open it in the app)
+  codearchitect history [dir] [--max-points N] [--format markdown|json] [--output file]
   codearchitect share [dir] [--output file.html]   (one self-contained page to send to others)
   codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
  *   codearchitect view [dir] [--port N] [--no-open]   map a folder and open it in the app
+ *   codearchitect history [dir] [--max-points N]      how health, cycles and rule violations changed over time
  *   codearchitect share [dir] [--output file.html]    one self-contained, explorable page of the architecture
  *
  * Files are read through git, so any two commits can be compared without checking them out.
@@ -18,6 +20,7 @@ import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildHeuristicGraph, isAnalyzableSource } from "../../lib/engines/heuristicGraph";
 import { comparisonToJson, compareSnapshots, evaluateCheck, renderAnalysis, renderMarkdown, takeSnapshot, type CheckOptions } from "../../lib/report";
+import { analyzeDrift, measure, renderDriftMarkdown, sampleIndices, type DriftPoint } from "../../lib/engines/drift";
 import { PRELOAD_ENV } from "../../lib/preload";
 import { renderShareHtml } from "../../lib/share";
 import { parseRulesJson } from "../../lib/rulesSchema";
@@ -35,7 +38,7 @@ class UsageError extends Error {}
 
 type Args = { command: string; positional: string[]; flags: Map<string, string | true> };
 
-const BOOLEAN_FLAGS = new Set(["help", "no-open", "no-fail", "no-fail-on-cycles", "no-fail-on-violations"]);
+const BOOLEAN_FLAGS = new Set(["help", "no-open", "history", "no-fail", "no-fail-on-cycles", "no-fail-on-violations"]);
 
 function parseArgs(argv: string[]): Args {
   const [command = "help", ...rest] = argv;
@@ -239,6 +242,53 @@ async function waitUntilReady(url: string, isAlive: () => boolean): Promise<bool
   return false;
 }
 
+const DEFAULT_HISTORY_POINTS = 30;
+const FIELD_SEPARATOR = "\x1f";
+
+/** First-parent history of `ref`, oldest first. */
+function commitLog(cwd: string, ref: string): Array<Pick<DriftPoint, "hash" | "author" | "date" | "message">> {
+  const out = git(cwd, ["log", "--first-parent", "--reverse", `--format=%H${FIELD_SEPARATOR}%an${FIELD_SEPARATOR}%aI${FIELD_SEPARATOR}%s`, ref]).toString("utf8");
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [hash = "", author = "", date = "", ...message] = line.split(FIELD_SEPARATOR);
+      return { hash, author, date, message: message.join(FIELD_SEPARATOR) };
+    });
+}
+
+/** Measure health at up to `maxPoints` evenly spaced commits. The current rules apply to every commit, so changes reflect code, not rule edits. */
+function collectDrift(cwd: string, name: string, rules: readonly ArchRule[], maxPoints: number): DriftPoint[] {
+  const commits = commitLog(cwd, "HEAD");
+  const picked = sampleIndices(commits.length, maxPoints).map((i) => commits[i]!);
+  const points: DriftPoint[] = [];
+  picked.forEach((commit, i) => {
+    process.stderr.write(`\rMeasuring history ${i + 1}/${picked.length}…`);
+    const files = sourceFilesAtRef(cwd, commit.hash);
+    if (files.length === 0) return; // before any supported source existed
+    points.push(measure(commit, takeSnapshot(buildHeuristicGraph(name, files, { maxFiles: MAX_MAPPED_FILES }), rules)));
+  });
+  process.stderr.write("\r\x1b[K");
+  return points;
+}
+
+function parseMaxPoints(args: Args): number {
+  const raw = flag(args, "max-points");
+  const n = raw === undefined ? DEFAULT_HISTORY_POINTS : Number(raw);
+  if (!Number.isInteger(n) || n < 2) throw new UsageError("--max-points must be a whole number of at least 2.");
+  return n;
+}
+
+function runHistory(args: Args): number {
+  const cwd = resolve(args.positional[0] ?? flag(args, "dir") ?? ".");
+  if (!isGitRepo(cwd)) throw new UsageError(`${cwd} is not inside a git repository.`);
+  const name = basename(cwd);
+  const report = analyzeDrift(collectDrift(cwd, name, rulesFromFile(join(cwd, CONFIG_FILE)), parseMaxPoints(args)));
+  emit(args, flag(args, "format") === "json" ? `${JSON.stringify(report, null, 2)}
+` : renderDriftMarkdown(report, name));
+  return 0;
+}
+
 /** Write a single HTML file that anyone can open: diagram, search, reading order and per-component details. */
 function runShare(args: Args): number {
   const dir = resolve(args.positional[0] ?? ".");
@@ -270,9 +320,10 @@ async function runView(args: Args): Promise<number> {
   const name = basename(dir);
   const graph = buildHeuristicGraph(name, files, { maxFiles: MAX_MAPPED_FILES });
   const rules = rulesFromFile(join(dir, CONFIG_FILE));
+  const drift = args.flags.has("history") && isGitRepo(dir) ? collectDrift(dir, name, rules, parseMaxPoints(args)) : undefined;
   const scratch = mkdtempSync(join(tmpdir(), "codearchitect-view-"));
   const file = join(scratch, "graph.json");
-  writeFileSync(file, JSON.stringify({ stamp: new Date().toISOString(), graph: { ...graph, id: `local-${slug(name)}`, rules: rules.length ? rules : graph.rules } }));
+  writeFileSync(file, JSON.stringify({ stamp: new Date().toISOString(), graph: { ...graph, id: `local-${slug(name)}`, rules: rules.length ? rules : graph.rules, ...(drift?.length ? { drift } : {}) } }));
   process.stdout.write(`Mapped ${graph.nodes.length} components from ${files.length} files in ${dir}
 Starting the app on port ${port}…
 `);
@@ -319,6 +370,7 @@ async function main(): Promise<number> {
   if (args.command === "pr") return runPr(args);
   if (args.command === "view") return runView(args);
   if (args.command === "share") return runShare(args);
+  if (args.command === "history") return runHistory(args);
   throw new UsageError(`Unknown command "${args.command}".\n\n${HELP}`);
 }
 

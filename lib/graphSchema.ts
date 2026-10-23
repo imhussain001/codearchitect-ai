@@ -64,6 +64,21 @@ const ScenarioSchema = z.object({
   diffs: z.array(z.object({ nodeId: id, after: z.string().max(MAX_CODE_CHARS), rationale: shortText })).max(MAX_NODES),
 });
 
+const MAX_DRIFT_POINTS = 200;
+
+const DriftPointSchema = z.object({
+  hash: z.string().max(64),
+  message: z.string().max(500),
+  author: z.string().max(200),
+  date: z.string().max(40),
+  components: z.number().int().min(0),
+  dependencies: z.number().int().min(0),
+  score: z.number().min(0).max(100),
+  grade: z.string().max(2),
+  cycles: z.number().int().min(0),
+  violations: z.number().int().min(0),
+});
+
 export const GraphSchema = z.object({
   id,
   name: shortText,
@@ -75,5 +90,6 @@ export const GraphSchema = z.object({
   rules: RulesSchema.optional(),
   kindLabels: z.record(z.enum(["frontend", "api", "logic", "data"]), z.string().max(60)).optional(),
   warnings: z.array(z.string()).optional(),
+  drift: z.array(DriftPointSchema).max(MAX_DRIFT_POINTS).optional(),
 });
 
