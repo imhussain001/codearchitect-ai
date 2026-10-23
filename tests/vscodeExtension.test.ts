@@ -30,6 +30,8 @@ const state = {
     onMessage: ((m: unknown) => unknown) | null;
   },
   editorChanged: null as null | (() => void),
+  config: {} as Record<string, unknown>,
+  configChanged: null as null | ((e: { affectsConfiguration: (s: string) => boolean }) => void),
   opened: [] as string[],
 };
 
@@ -136,14 +138,17 @@ vi.mock("vscode", () => {
     workspace: {
       workspaceFolders: [{ name: "demo", uri: new Uri("/ws") }],
       asRelativePath: (uri: { fsPath: string }) => uri.fsPath.replace(/^\/ws\//, ""),
-      getConfiguration: () => ({ get: (_k: string, d: unknown) => d }),
+      getConfiguration: () => ({ get: (k: string, d: unknown) => (k in state.config ? state.config[k] : d) }),
       findFiles: async () => Object.keys(files).map((p) => new Uri(`/ws/${p}`)),
       fs: {
         readFile: async (uri: { fsPath: string }) => new TextEncoder().encode(files[uri.fsPath.replace(/^\/ws\//, "")] ?? ""),
         writeFile: async (uri: { fsPath: string }, bytes: Uint8Array) => void state.written.set(uri.fsPath, new TextDecoder().decode(bytes)),
       },
       onDidSaveTextDocument: () => disposable,
-      onDidChangeConfiguration: () => disposable,
+      onDidChangeConfiguration: (cb: (e: { affectsConfiguration: (s: string) => boolean }) => void) => {
+        state.configChanged = cb;
+        return disposable;
+      },
       createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidDelete: () => disposable, dispose() {} }),
     },
     commands: {
@@ -169,6 +174,7 @@ async function start() {
   state.commands.clear();
   state.messages = [];
   state.panel = null;
+  state.config = {};
   state.activeEditor = editorFor("src/auth.ts");
   const { activate } = await import("../extensions/vscode/src/extension");
   activate({ subscriptions: [] } as never);
@@ -297,5 +303,40 @@ describe("map panel", () => {
     await run("codearchitect.refresh");
     await settle();
     expect(state.panel!.html.startsWith("<!doctype html>")).toBe(true);
+  });
+});
+
+describe("status bar click option", () => {
+  const refresh = async () => {
+    await (state.commands.get("codearchitect.refresh") as Handler)();
+    await settle();
+  };
+
+  it("opens the list by default", async () => {
+    await start();
+    await refresh();
+    expect(state.status.command).toBe("codearchitect.showBlastRadius");
+    expect(JSON.stringify(state.status.tooltip)).toContain("Click for the list");
+  });
+
+  it("opens the map when the setting says so, and switches without a re-map", async () => {
+    await start();
+    await refresh();
+    state.config = { statusBarClick: "map" };
+    state.configChanged!({ affectsConfiguration: (s) => s === "codearchitect" });
+    expect(state.status.command).toBe("codearchitect.showGraph");
+    expect(JSON.stringify(state.status.tooltip)).toContain("Click for the architecture map");
+
+    state.config = { statusBarClick: "list" };
+    state.configChanged!({ affectsConfiguration: (s) => s === "codearchitect" });
+    expect(state.status.command).toBe("codearchitect.showBlastRadius");
+  });
+
+  it("treats an unknown value as the default", async () => {
+    await start();
+    await refresh();
+    state.config = { statusBarClick: "banana" };
+    state.configChanged!({ affectsConfiguration: () => true });
+    expect(state.status.command).toBe("codearchitect.showBlastRadius");
   });
 });

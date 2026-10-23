@@ -15,11 +15,15 @@ const MAX_FILE_BYTES = 200 * 1024;
 const READ_BUDGET_FACTOR = 2; // read up to this many times maxFiles, then let the mapper choose the most relevant
 const REBUILD_DEBOUNCE_MS = 800;
 
-type Settings = { maxFiles: number; codeLens: boolean };
+type Settings = { maxFiles: number; codeLens: boolean; statusBarClick: "list" | "map" };
 
 const readSettings = (): Settings => {
   const config = vscode.workspace.getConfiguration("codearchitect");
-  return { maxFiles: Math.max(20, config.get<number>("maxFiles", 800)), codeLens: config.get<boolean>("codeLens", true) };
+  return {
+    maxFiles: Math.max(20, config.get<number>("maxFiles", 800)),
+    codeLens: config.get<boolean>("codeLens", true),
+    statusBarClick: config.get<string>("statusBarClick", "list") === "map" ? "map" : "list",
+  };
 };
 
 const relPath = (uri: vscode.Uri) => vscode.workspace.asRelativePath(uri, false).split("\\").join("/");
@@ -127,13 +131,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const total = summary.dependents + summary.indirectDependents;
     status.text = `$(type-hierarchy) ${plural(total, "file")} affected`;
-    status.command = "codearchitect.showBlastRadius";
+    const opensMap = readSettings().statusBarClick === "map";
+    status.command = opensMap ? "codearchitect.showGraph" : "codearchitect.showBlastRadius";
     const md = new vscode.MarkdownString(undefined, true);
     md.appendMarkdown(`**${summary.label}** · ${summary.layer}\n\n`);
     md.appendMarkdown(`${plural(summary.dependents, "file")} use it directly, ${summary.indirectDependents} more indirectly. It uses ${summary.dependencies}.\n\n`);
     md.appendMarkdown(`Change-risk **${summary.risk}/100** (${summary.level})${summary.reasons.length ? `: ${summary.reasons.join(", ")}` : ""}.\n\n`);
     if (index.skipped > 0) md.appendMarkdown(`_${plural(index.skipped, "file")} over the ${readSettings().maxFiles}-file limit are not mapped (setting: codearchitect.maxFiles)._\n\n`);
-    md.appendMarkdown("Click for the list. Command Palette: _CodeArchitect: Show architecture map_ for the graph.");
+    md.appendMarkdown(opensMap ? "Click for the architecture map. Command Palette: _CodeArchitect: Show blast radius of this file_ for the list." : "Click for the list. Command Palette: _CodeArchitect: Show architecture map_ for the graph.");
     status.tooltip = md;
     status.backgroundColor = summary.level === "risky" ? new vscode.ThemeColor("statusBarItem.warningBackground") : undefined;
     status.show();
@@ -250,7 +255,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (doc.uri.scheme === "file" && LANGUAGES.includes(doc.languageId)) scheduleRebuild();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("codearchitect")) scheduleRebuild();
+      if (!e.affectsConfiguration("codearchitect")) return;
+      updateStatus(); // the click action can change without a re-map
+      scheduleRebuild();
     }),
   );
 

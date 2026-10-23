@@ -60,6 +60,17 @@ The first mapping happens at startup, and again shortly after you save, create o
 |---|---|---|
 | `codearchitect.maxFiles` | `800` | Most files to map. Larger workspaces map the most architecturally relevant files; the status-bar tooltip says how many were left out. |
 | `codearchitect.codeLens` | `true` | Show the `used by N files` lens. |
+| `codearchitect.statusBarClick` | `list` | What clicking `N files affected` does: `list` shows the affected files, `map` opens the architecture map beside the code. The other stays in the Command Palette. |
+| `codearchitect.showTitleBarButton` | `false` | Add a button (a small hierarchy icon) at the top right of the editor that opens the architecture map. Shown for TypeScript, JavaScript, Go, Java, Rust, Python and MATLAB files. |
+
+**To change a setting:** `File → Preferences → Settings` (`Ctrl+,`), search for `CodeArchitect`, and pick a value; the status bar updates immediately. Or edit `settings.json` (`Ctrl+Shift+P` → *Preferences: Open User Settings (JSON)*):
+
+```json
+{
+  "codearchitect.statusBarClick": "map",
+  "codearchitect.showTitleBarButton": true
+}
+```
 
 ## Update or remove it
 

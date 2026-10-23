@@ -26,7 +26,8 @@
     "commands": [
       {
         "command": "codearchitect.showGraph",
-        "title": "CodeArchitect: Show architecture map"
+        "title": "CodeArchitect: Show architecture map",
+        "icon": "$(type-hierarchy)"
       },
       {
         "command": "codearchitect.showBlastRadius",
@@ -45,9 +46,30 @@
         "title": "CodeArchitect: Re-map the workspace"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "codearchitect.showGraph",
+          "group": "navigation",
+          "when": "config.codearchitect.showTitleBarButton && editorLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact|go|java|rust|python|matlab)$/"
+        }
+      ]
+    },
     "configuration": {
       "title": "CodeArchitect",
       "properties": {
+        "codearchitect.statusBarClick": {
+          "type": "string",
+          "enum": ["list", "map"],
+          "enumDescriptions": ["Clicking \"N files affected\" shows the list of affected files.", "Clicking \"N files affected\" opens the architecture map beside the code."],
+          "default": "list",
+          "description": "What clicking the status bar item does. The other one stays available from the Command Palette."
+        },
+        "codearchitect.showTitleBarButton": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show a button in the editor's title bar (top right) that opens the architecture map."
+        },
         "codearchitect.maxFiles": {
           "type": "number",
           "default": 800,

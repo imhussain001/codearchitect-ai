@@ -16,6 +16,8 @@ The map is built locally from your workspace files and re-built shortly after yo
 |---|---|---|
 | `codearchitect.maxFiles` | 800 | Most files to map. Larger workspaces map the most architecturally relevant files; the status-bar tooltip says how many were left out. |
 | `codearchitect.codeLens` | true | Show the `used by N files` lens. |
+| `codearchitect.statusBarClick` | `list` | What clicking `N files affected` does: `list` or `map` (the architecture map). |
+| `codearchitect.showTitleBarButton` | false | Add a button to the editor's title bar that opens the architecture map. |
 
 ## Limits
 

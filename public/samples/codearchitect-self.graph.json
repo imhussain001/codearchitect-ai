@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-23T07:03:08.614Z",
+  "exportedAt": "2026-10-23T09:18:36.347Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -3670,6 +3670,16 @@
         "message": "feat(vscode): show the architecture graph inside VS Code",
         "phase": "Phase 53 · show the architecture graph inside VS Code",
         "narrative": "feat(vscode): show the architecture graph inside VS Code. Touches 0 mapped component(s).",
+        "addedNodeIds": [],
+        "modifiedNodeIds": []
+      },
+      {
+        "hash": "d44b37d",
+        "author": "imhussain001",
+        "date": "2026-10-23",
+        "message": "feat(share): data-flow trace and reads/writes in the architecture map",
+        "phase": "Phase 54 · data-flow trace and reads/writes in the architecture map",
+        "narrative": "feat(share): data-flow trace and reads/writes in the architecture map. Touches 0 mapped component(s).",
         "addedNodeIds": [],
         "modifiedNodeIds": []
       }
