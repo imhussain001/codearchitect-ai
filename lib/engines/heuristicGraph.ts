@@ -67,13 +67,30 @@ export function extractImports(file: SourceFile): string[] {
   return [...specs];
 }
 
+/** Names in `export { a, b as c }` lists, with or without `from`: how modules re-export things declared elsewhere. */
+const LISTED_EXPORT = /export\s+(?:type\s+)?\{([^}]*)\}/g;
+
+function listedExports(content: string): string[] {
+  const names: string[] = [];
+  // Doc comments often show `export { a, b }` as an example; only real code counts.
+  const code = content.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+  for (const m of code.matchAll(LISTED_EXPORT)) {
+    for (const part of m[1]!.split(",")) {
+      const cleaned = part.trim().replace(/^type\s+/, "");
+      const exported = cleaned.split(/\s+as\s+/).pop()?.trim();
+      if (exported && /^[A-Za-z_$][\w$]*$/.test(exported)) names.push(exported === "default" ? "default" : exported);
+    }
+  }
+  return names.filter((n) => n !== "default");
+}
+
 export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".m")) return matlabFunctions(file.content);
   if (file.path.endsWith(".go")) return goExports(file.content);
   if (file.path.endsWith(".java")) return javaExports(file.content);
   if (file.path.endsWith(".rs")) return rustExports(file.content);
   if (file.path.endsWith(".py")) return pythonExports(file.content);
-  return [...new Set([...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!)))];
+  return [...new Set([...[...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!)), ...listedExports(file.content)])];
 }
 
 function extractParams(file: SourceFile): CodeParam[] {

@@ -1,3 +1,4 @@
+import { findDeclarationLine } from "@/lib/engines/declarations";
 import { buildHeuristicGraph, isAnalyzableSource } from "@/lib/engines/heuristicGraph";
 import { analyzeHealth, type HealthReport, type NodeHealth } from "@/lib/engines/health";
 import { edgeUses, exportUsage } from "@/lib/engines/symbols";
@@ -40,19 +41,7 @@ export type SymbolUsage = { name: string; users: FileRef[]; uncertain: boolean; 
 
 const normalize = (path: string) => path.split("\\").join("/").replace(/^\.\//, "");
 
-/** First line that looks like the declaration of `name` (function, class, const, struct, fn, …), else any line using it. */
-export function findDeclarationLine(content: string, name: string): number | null {
-  const escaped = name.replace(/\$/g, String.raw`\$`);
-  const decl = new RegExp(
-    String.raw`(?:function|class|interface|type|enum|const|let|var|struct|trait|fn|func|record|def|object|mod|static|union)\s+${escaped}(?![\w$])|(?<![\w$.])${escaped}\s*[:=]\s*(?:async\s*)?(?:\(|function)`,
-  );
-  const lines = content.split("\n");
-  const index = lines.findIndex((line) => decl.test(line));
-  if (index >= 0) return index;
-  const loose = new RegExp(String.raw`(?<![\w$])${escaped}(?![\w$])`);
-  const fallback = lines.findIndex((line) => loose.test(line));
-  return fallback >= 0 ? fallback : null;
-}
+export { findDeclarationLine } from "@/lib/engines/declarations";
 
 export class ArchIndex {
   readonly graph: ArchitectureGraph;

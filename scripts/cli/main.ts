@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildHeuristicGraph, isAnalyzableSource } from "../../lib/engines/heuristicGraph";
+import { analyzeChangedSymbols } from "../../lib/engines/changedSymbols";
 import { comparisonToJson, compareSnapshots, evaluateCheck, renderAnalysis, renderMarkdown, takeSnapshot, type CheckOptions } from "../../lib/report";
 import { analyzeDrift, measure, renderDriftMarkdown, sampleIndices, type DriftPoint } from "../../lib/engines/drift";
 import { PRELOAD_ENV } from "../../lib/preload";
@@ -38,7 +39,7 @@ class UsageError extends Error {}
 
 type Args = { command: string; positional: string[]; flags: Map<string, string | true> };
 
-const BOOLEAN_FLAGS = new Set(["help", "no-open", "history", "no-fail", "no-fail-on-cycles", "no-fail-on-violations"]);
+const BOOLEAN_FLAGS = new Set(["help", "no-open", "history", "no-fail", "no-fail-on-cycles", "no-fail-on-violations", "fail-on-removed-exports"]);
 
 function parseArgs(argv: string[]): Args {
   const [command = "help", ...rest] = argv;
@@ -156,6 +157,7 @@ function checkOptions(args: Args): CheckOptions {
   return {
     failOnNewCycles: !args.flags.has("no-fail-on-cycles"),
     failOnNewViolations: !args.flags.has("no-fail-on-violations"),
+    failOnRemovedExports: args.flags.has("fail-on-removed-exports"),
     maxHealthDrop: drop === undefined ? undefined : Number(drop),
   };
 }
@@ -209,7 +211,7 @@ function runPr(args: Args): number {
   const headSnap = takeSnapshot(buildHeuristicGraph(name, headFiles, options), rules);
   const baseSnap = baseFiles.length ? takeSnapshot(buildHeuristicGraph(name, baseFiles, options), rules) : null;
 
-  const comparison = compareSnapshots(baseSnap, headSnap, changed);
+  const comparison = compareSnapshots(baseSnap, headSnap, changed, analyzeChangedSymbols(baseFiles, headFiles, changed));
   const check = evaluateCheck(comparison, checkOptions(args));
   emit(args, flag(args, "format") === "json" ? `${JSON.stringify(comparisonToJson(comparison, check), null, 2)}\n` : renderMarkdown(comparison, check));
   if (!check.passed) process.stderr.write(`Architecture check failed: ${check.failures.join("; ")}\n`);
@@ -355,7 +357,7 @@ Usage
   codearchitect analyze [dir] [--rules file] [--format markdown|json] [--output file] [--no-fail]
   codearchitect pr --base <ref> [--head <ref>] [--dir path] [--rules file]
                    [--format markdown|json] [--output file]
-                   [--max-health-drop N] [--no-fail-on-cycles] [--no-fail-on-violations]
+                   [--max-health-drop N] [--no-fail-on-cycles] [--no-fail-on-violations] [--fail-on-removed-exports]
 
 Rules live in ${CONFIG_FILE} (an array, or {"rules": [...]}). Exit code is 1 when the check fails.
 `;

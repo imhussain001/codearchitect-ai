@@ -1,0 +1,10 @@
+/** Lines that belong to the declaration below them: doc comments, plain comments, decorators and attributes. */
+const LEADING_TRIVIA = /^\s*(?:\/\*\*?|\*\/?|\/\/|#|@|\[)/;
+
+/** The first line of a declaration's own block, including the comments and decorators directly above it. */
+function blockStart(lines: readonly string[], declLine: number): number {
+  let start = declLine;
+  while (start > 0 && LEADING_TRIVIA.test(lines[start - 1]!)) start--;
+  return start;
+}
+

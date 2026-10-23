@@ -121,8 +121,13 @@ Reads the **base** and **head** commits straight from git (no checkout), maps bo
 | `--max-health-drop N` | Also fail when the health score drops by more than N points |
 | `--no-fail-on-cycles` | Do not fail on a new circular dependency |
 | `--no-fail-on-violations` | Do not fail on new error-level rule violations |
+| `--fail-on-removed-exports` | Also fail when the change removes an export that a file the change does not touch still imports (off by default: the match is heuristic) |
 
 The report lists what is new and what the change fixed, plus the **blast radius**: the components that contain changed files, everything that depends on them (directly and indirectly), the riskiest component touched, and deleted components that surviving ones still use. Changed files that belong to no component (docs, config) are noted, not counted.
+
+**Changed exports.** For TypeScript, JavaScript, Python, Go, Java and Rust files, the report goes below "this file changed" to **which exports changed**, by comparing the file before and after line by line and attributing each changed line to the export whose declaration it sits under. For each changed file it says what was modified, added or removed, then splits the direct importers into the ones that **use a changed name** (and which) and the ones that **import the file but none of those names**. A removed export that an untouched file still imports is flagged with a warning (and fails the check with `--fail-on-removed-exports`). The JSON output has the same data under `blastRadius.changedSymbols`.
+
+How cautious it is: a change that cannot be tied to one export (module-level code before the first export, for example) is reported as such and **no importer is narrowed**; import-only and blank-line edits are ignored; an importer whose usage could not be read (dynamic import, non-JS/TS-style import) counts as affected. It does not tell whether a changed export's *behaviour* matters to a caller, only who names it, and a helper function that sits after an export is attributed to that export.
 
 For script projects (MATLAB, Python), the report also lists **output files that may be out of date**: every data file downstream of a changed script or input, found by the same data-flow tracing as the Trace section, so a PR that changes `nrmse_percent.m` says which CSVs and figures to regenerate. It is advisory and never fails the check.
 
