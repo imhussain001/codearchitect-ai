@@ -169,6 +169,18 @@ C# imports whole **namespaces**, not types, and a namespace can span many files,
 - **Conventions:** `*Controller.cs` and `*Hub.cs` are API, `*Repository.cs`, `*DbContext.cs`, `*Entity.cs` and `Migrations/` are data; `Program.cs`, `Startup.cs`, controllers and hubs are entry points.
 - **Limits:** lexical, no compiler or project files. Types reached only through `var`, reflection or dependency injection by interface name are linked only if the name appears; a method whose name matches an extension method's can be over-linked; strings (including interpolated holes) are blanked, so a type named only inside `$"{...}"` is missed. Run against `jbogard/MediatR` (83 files) and `FluentValidation/FluentValidation` (142 files): found and fixed unlinked extension-method classes and test/assembly-info files; both now map with no unlinked source files.
 
+## Kotlin (`lib/engines/kotlinImports.ts`)
+
+Like Java, a file has a `package` and imports by qualified name, but Kotlin also has **top-level functions and properties**, and those are imported by name too (`import com.acme.util.slugify`). The unit of a link is a declaration, and the edge goes to the file that declares it.
+
+- **Declarations:** top-level class, interface, object, typealias (including `data`, `sealed`, `enum`, `fun interface`), function (including extension functions, named by the function), and `val`/`var`. Nested types and members are not mapped. `private` declarations are not exported.
+- **Imports:** `import a.b.C`, `import a.b.slugify`, aliases (`as`) and wildcards. A wildcard links only to the files whose declarations the importer mentions. Java classes in the same repository are importable from Kotlin; Java files that use Kotlin classes are not followed.
+- **Same package:** a mention of a declaration from the file's own package needs no import, so it is marked `samePackage` (ignored by cycle detection, kept for fan-in and blast radius); a link through an import is a real dependency.
+- **Multiplatform:** the same name declared in several source sets (`expect` in `commonMain`, `actual` in `jvmMain`, `jsMain`...) links to the common declaration only, not every platform file.
+- **Skipped:** `src/test*`, `src/androidTest*`, `src/*Test/` source sets and `*Test.kt` / `*Tests.kt` / `*IT.kt` (case-sensitive, so `Contest.kt` stays); `.kts` scripts are not source.
+- **Entry points:** `main.kt`, `*Application.kt`, `*Main.kt`, `*App.kt`, `*Controller.kt`, `*Activity.kt`.
+- **Limits:** lexical, no compiler or Gradle model. A name used only through string templates or reflection is missed; a function named like a common method can be over-linked when it is called with a dot (extension functions cannot be told from members). Run against `square/okhttp` (393 files) and `InsertKoinIO/koin` (338 files): found and fixed Kotlin Multiplatform `actual` declarations being linked as if each were a separate dependency (Koin: 1,699 → 1,472 edges, the removed ones were platform duplicates). Remaining orphans are the independent sample programs in okhttp and unused annotations in Koin.
+
 ## Rust (`lib/engines/rustImports.ts`)
 
 Files form a module tree under each crate's `src/` (`a.rs` and `a/mod.rs` are module `a`; `lib.rs`/`main.rs` are the root). A `use` path names a module or an item, so the edge goes to the file of the longest module prefix, with the item after it as the symbol.
