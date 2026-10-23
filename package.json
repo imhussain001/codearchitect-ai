@@ -20,6 +20,9 @@
     "build:cli": "node scripts/build-cli.mjs",
     "notices": "node scripts/third-party-notices.mjs",
     "ext:build": "node scripts/build-extension.mjs",
+    "ext:icon": "node scripts/make-extension-icon.mjs",
+    "ext:check": "vitest run tests/extensionPublishReady.test.ts tests/vscodeManifest.test.ts tests/license.test.ts && npm run ext:package --silent",
+    "ext:publish": "npm run ext:check --silent && cd extensions/vscode && npx --yes @vscode/vsce publish --no-dependencies",
     "ext:package": "npm run ext:build --silent && cd extensions/vscode && npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository -o codearchitect.vsix",
     "view": "npm run build:cli --silent && node dist/cli/codearchitect.mjs view",
     "cli": "npm run build:cli --silent && node dist/cli/codearchitect.mjs"

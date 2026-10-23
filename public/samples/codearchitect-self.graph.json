@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-23T12:25:09.504Z",
+  "exportedAt": "2026-10-23T12:26:11.078Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -3828,6 +3828,16 @@
           "view-model",
           "cli"
         ]
+      },
+      {
+        "hash": "56be410",
+        "author": "imhussain001",
+        "date": "2026-10-23",
+        "message": "feat(vscode): make the extension ready for the Marketplace",
+        "phase": "Phase 65 · make the extension ready for the Marketplace",
+        "narrative": "feat(vscode): make the extension ready for the Marketplace. Touches 0 mapped component(s).",
+        "addedNodeIds": [],
+        "modifiedNodeIds": []
       }
     ],
     "scenarios": [
