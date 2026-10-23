@@ -225,6 +225,7 @@ It is licensed under the **Apache License, Version 2.0** (full text in [LICENSE]
 | [API reference](docs/api.md) | Every route: request, response, errors, limits |
 | [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, health scoring, script data-flow, search ranking, diff, repo mapping, git parsing, scaffolding |
 | [VS Code extension](docs/vscode-extension.md) | What the extension shows, how to build and install it (command line or from the window), settings, troubleshooting |
+| [Publishing the extension](docs/publishing-the-extension.md) | Creating a Marketplace publisher and token, the one command that publishes, updates, and decisions to make first |
 | [Research code](docs/research-scripts.md) | MATLAB and Python data-flow mapping: layers, provenance, stale outputs in pull requests, how scripts are read, limits |
 | [Rules, CLI and CI](docs/cli-and-ci.md) | Writing rules, the `analyze` and `pr` commands, exit codes, and the GitHub workflow |
 | [Graph format](docs/graph-format.md) | The `codearchitect/v1` JSON manifest, for building your own graphs |

@@ -2,6 +2,11 @@
   "name": "codearchitect-vscode",
   "displayName": "CodeArchitect: Blast Radius",
   "description": "See what a change to this file can break: dependents in the status bar, per-symbol usage CodeLens, and a shareable architecture page.",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#18181b",
+    "theme": "dark"
+  },
   "version": "0.1.0",
   "publisher": "imhussain001",
   "license": "Apache-2.0",
@@ -9,7 +14,6 @@
     "name": "Hussain Tak",
     "url": "https://github.com/imhussain001"
   },
-  "private": true,
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -99,5 +103,10 @@
     "type": "git",
     "url": "https://github.com/imhussain001/codearchitect-ai.git",
     "directory": "extensions/vscode"
-  }
+  },
+  "homepage": "https://github.com/imhussain001/codearchitect-ai#readme",
+  "bugs": {
+    "url": "https://github.com/imhussain001/codearchitect-ai/issues"
+  },
+  "preview": true
 }
