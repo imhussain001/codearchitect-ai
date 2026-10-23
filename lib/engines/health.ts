@@ -167,7 +167,7 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
   const ids = new Set(nodes.map((n) => n.id));
   const allEdges = graph.edges.filter((e) => !e.isDraft && ids.has(e.source) && ids.has(e.target) && e.source !== e.target);
   // Type-only imports are erased at runtime: they do not make a hub, a cycle or a crossed layer.
-  const edges = allEdges.filter((e) => !e.typeOnly);
+  const edges = allEdges.filter((e) => !e.typeOnly && !e.samePackage);
   const connected = new Set(allEdges.flatMap((e) => [e.source, e.target]));
   const label = (id: string) => nodeById(graph.nodes, id)?.data.label ?? id;
 

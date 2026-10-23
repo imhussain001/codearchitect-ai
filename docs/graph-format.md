@@ -66,6 +66,7 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
   "relation": "reads",                // calls | reads | writes | imports | publishes
   "label": "findById()", "isDraft": false,
   "typeOnly": false,
+  "samePackage": false,               // optional; Go: both files share a package (ignored by health)
   "symbols": ["verifyToken"] }          // optional; names the source uses from the target ("*" = whole module). Absent = unknown                 // optional; true = only an `import type` (ignored by health, kept by rules and blast radius)
 ```
 

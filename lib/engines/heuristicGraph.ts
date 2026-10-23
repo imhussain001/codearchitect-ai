@@ -6,7 +6,7 @@ import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, 
 
 const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|cs|php|vue|svelte|m)$/i;
 const IGNORED_PATHS =
-  /(^|\/)(node_modules|dist|build|out|\.next|\.git|vendor|venv|\.venv|__pycache__|coverage|target)(\/|$)|\.d\.ts$|(\.|_)(test|spec|stories)\.|(^|\/)(__tests__|tests?)\//i;
+  /(^|\/)(node_modules|dist|build|out|\.next|\.git|vendor|testdata|venv|\.venv|__pycache__|coverage|target)(\/|$)|\.d\.ts$|(\.|_)(test|spec|stories)\.|(^|\/)(__tests__|tests?)\//i;
 const CONFIG_FILES = /(^|\/)[^/]*(config|rc)\.(c|m)?(js|ts)$/i;
 
 export const MAX_GRAPH_FILES = 60;

@@ -85,6 +85,25 @@ export function goExports(content: string): string[] {
   return [...names];
 }
 
+const NAME = "[A-Za-z_][A-Za-z0-9_]*";
+const MIN_INTRA_NAME_LENGTH = 3;
+const NOT_LINKABLE = new Set(["init", "main"]);
+
+/** Every top-level name a file declares, exported or not (same-package files can use unexported ones). Methods are not top-level names. */
+export function goDeclared(content: string): string[] {
+  const code = blankGo(content, { strings: true });
+  const names = new Set<string>();
+  for (const m of code.matchAll(new RegExp(String.raw`^func\s+(${NAME})\s*[(\[]`, "gm"))) names.add(m[1]!);
+  for (const m of code.matchAll(new RegExp(String.raw`^(?:type|var|const)\s+(${NAME})\b`, "gm"))) names.add(m[1]!);
+  for (const block of code.matchAll(/^(?:var|const|type)\s*\(([^)]*)\)/gm)) {
+    for (const line of block[1]!.split("\n")) {
+      const m = new RegExp(String.raw`^\s+(${NAME})\b`).exec(line);
+      if (m) names.add(m[1]!);
+    }
+  }
+  return [...names].filter((n) => n !== "_" && !NOT_LINKABLE.has(n) && n.length >= MIN_INTRA_NAME_LENGTH);
+}
+
 const dirOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
 
 /**
@@ -118,6 +137,35 @@ export function detectModule(imports: readonly string[], dirs: readonly string[]
 }
 
 /**
+ * Same-package coupling: file A uses a top-level name that file B declares. Over-approximates
+ * (a local variable named like a package-level function counts), and a name declared in several
+ * files (build-tagged variants) links to all of them.
+ */
+function addSamePackageEdges(
+  go: readonly SourceFile[],
+  byDir: ReadonlyMap<string, Array<{ path: string; exports: string[] }>>,
+  idForPath: ReadonlyMap<string, string>,
+  add: (source: string, target: string, symbols: string[] | undefined, samePackage?: boolean) => void,
+): void {
+  const contentOf = new Map(go.map((f) => [f.path, f.content]));
+  for (const members of byDir.values()) {
+    if (members.length < 2) continue;
+    const definers = new Map<string, string[]>();
+    for (const m of members) for (const name of goDeclared(contentOf.get(m.path)!)) (definers.get(name) ?? definers.set(name, []).get(name)!).push(m.path);
+
+    for (const m of members) {
+      const code = blankGo(contentOf.get(m.path)!, { strings: true });
+      const used = new Set([...code.matchAll(new RegExp(String.raw`(?<![\w$.])(${NAME})`, "g"))].map((x) => x[1]!));
+      const byTarget = new Map<string, string[]>();
+      for (const name of used) {
+        for (const path of definers.get(name) ?? []) if (path !== m.path) (byTarget.get(path) ?? byTarget.set(path, []).get(path)!).push(name);
+      }
+      for (const [path, names] of byTarget) add(idForPath.get(m.path)!, idForPath.get(path)!, names.sort(), true);
+    }
+  }
+}
+
+/**
  * Edges for the Go files in `files`: each importer → the files of the imported package that
  * define the names it uses. `symbols` lists those names.
  */
@@ -136,17 +184,21 @@ export function goEdges(files: readonly SourceFile[], idForPath: ReadonlyMap<str
 
   const parsed = go.map((f) => ({ file: f, imports: goImports(f.content) }));
   const module = detectModule(parsed.flatMap((p) => p.imports.map((i) => i.path)), [...byDir.keys()], repoName);
-  if (!module) return [];
 
   const merged = new Map<string, DependencyEdge>();
-  const add = (source: string, target: string, symbols: string[] | undefined) => {
+  const add = (source: string, target: string, symbols: string[] | undefined, samePackage = false) => {
     if (source === target) return;
     const id = `e-${source}--${target}`;
     const existing = merged.get(id);
-    if (!existing) return void merged.set(id, { id, source, target, relation: "imports", ...(symbols ? { symbols } : {}) });
+    if (!existing) return void merged.set(id, { id, source, target, relation: "imports", ...(samePackage ? { samePackage: true } : {}), ...(symbols ? { symbols } : {}) });
     if (!symbols || !existing.symbols) delete existing.symbols;
     else existing.symbols = [...new Set([...existing.symbols, ...symbols])].sort();
   };
+
+  // Files in one package use each other's names without importing anything.
+  addSamePackageEdges(go, byDir, idForPath, add);
+
+  if (!module) return [...merged.values()];
 
   for (const { file, imports } of parsed) {
     const code = blankGo(file.content, { strings: true });

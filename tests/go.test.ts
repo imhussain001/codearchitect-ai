@@ -132,3 +132,53 @@ describe("Go graph", () => {
     expect(g.edges.every((e) => e.symbols === undefined)).toBe(true);
   });
 });
+
+describe("same-package coupling", () => {
+  const pkg = [
+    { path: "binding/binding.go", content: `package binding\n\ntype Binding interface{ Name() string }\n\nvar Default = defaultFor\n` },
+    { path: "binding/form.go", content: `package binding\n\nfunc defaultFor() Binding { return nil }\n\nfunc parseForm() {}\n` },
+    { path: "binding/json.go", content: `package binding\n\n// uses parseForm only in a comment: parseForm\nfunc decode() { var b Binding; _ = b }\n` },
+    { path: "binding/alone.go", content: `package binding\n\nfunc unrelated() {}\n` },
+  ];
+  const g = buildHeuristicGraph("m", pkg);
+  const e = (from: string, to: string) => g.edges.find((x) => g.nodes.find((n) => n.id === x.source)!.data.filePath === from && g.nodes.find((n) => n.id === x.target)!.data.filePath === to);
+
+  it("links files that use each other's top-level names without any import", () => {
+    expect(e("binding/binding.go", "binding/form.go")?.symbols).toEqual(["defaultFor"]);
+    expect(e("binding/form.go", "binding/binding.go")?.symbols).toEqual(["Binding"]);
+    expect(e("binding/json.go", "binding/binding.go")?.symbols).toEqual(["Binding"]);
+  });
+
+  it("ignores names that only appear in comments and files that use nothing", () => {
+    expect(e("binding/json.go", "binding/form.go")).toBeUndefined();
+    expect(g.edges.filter((x) => g.nodes.find((n) => n.id === x.source)!.data.filePath === "binding/alone.go")).toEqual([]);
+  });
+
+  it("lists top-level declarations including unexported ones, never methods", async () => {
+    const { goDeclared } = await import("@/lib/engines/goImports");
+    expect(goDeclared(`package p\nfunc Run() {}\nfunc (s *S) Method() {}\nfunc helper() {}\nfunc init() {}\ntype S struct{}\nvar (\n\tcache = 1\n\tX = 2\n)\n`).sort()).toEqual(["Run", "cache", "helper"]);
+  });
+});
+
+describe("same-package edges and health", () => {
+  const cyclic = buildHeuristicGraph("m", [
+    { path: "p/a.go", content: `package p\n\nfunc Alpha() { Bravo() }\n` },
+    { path: "p/b.go", content: `package p\n\nfunc Bravo() { Alpha() }\n` },
+  ]);
+
+  it("marks them, so file-level loops inside one package are not reported as cycles", () => {
+    expect(cyclic.edges).toHaveLength(2);
+    expect(cyclic.edges.every((e) => e.samePackage === true)).toBe(true);
+    expect(analyzeHealth(cyclic).issues.filter((i) => i.kind === "cycle")).toEqual([]);
+  });
+
+  it("still counts them for blast radius", () => {
+    const a = cyclic.nodes.find((n) => n.data.filePath === "p/a.go")!.id;
+    const result = analyzeImpactLocally(cyclic, "change Alpha", a);
+    expect(result.impacts.length).toBeGreaterThan(1);
+  });
+
+  it("does not mark cross-package imports", () => {
+    expect(graph.edges.some((e) => e.samePackage)).toBe(false);
+  });
+});
