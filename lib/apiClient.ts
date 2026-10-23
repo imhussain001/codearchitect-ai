@@ -1,6 +1,6 @@
 "use client";
 
-import { buildHeuristicGraph, selectGraphFiles } from "@/lib/engines/heuristicGraph";
+import { buildHeuristicGraph, MAX_GRAPH_FILES, selectGraphFiles } from "@/lib/engines/heuristicGraph";
 import { analyzeImpactLocally } from "@/lib/engines/localImpact";
 import { scaffoldLocally } from "@/lib/engines/localScaffold";
 import type { ArchitectureGraph, EngineInfo, ImpactAnalysisResult, ScaffoldResult, SourceFile, StoryNarrative } from "@/lib/types";
@@ -55,16 +55,16 @@ export function requestStory(graph: ArchitectureGraph): Promise<Outcome<StoryNar
   return postJson("/api/story", { graph });
 }
 
-export function requestRepoFromFiles(name: string, files: SourceFile[]): Promise<Outcome<ArchitectureGraph>> {
-  const { selected, warnings } = selectGraphFiles(files);
+export function requestRepoFromFiles(name: string, files: SourceFile[], maxFiles: number = MAX_GRAPH_FILES): Promise<Outcome<ArchitectureGraph>> {
+  const { selected, warnings } = selectGraphFiles(files, maxFiles);
   return withOfflineFallback(
-    () => postJson<ArchitectureGraph>("/api/analyze-repo", { kind: "files", name, files: selected }),
-    () => buildHeuristicGraph(name, files),
+    () => postJson<ArchitectureGraph>("/api/analyze-repo", { kind: "files", name, files: selected, maxFiles }),
+    () => buildHeuristicGraph(name, files, { maxFiles }),
   ).then((outcome) => ({ ...outcome, warning: [outcome.warning, ...warnings].filter(Boolean).join(" ") || undefined }));
 }
 
-export function requestRepoFromGithub(url: string): Promise<Outcome<ArchitectureGraph>> {
-  return postJson("/api/analyze-repo", { kind: "github", url });
+export function requestRepoFromGithub(url: string, maxFiles: number = MAX_GRAPH_FILES): Promise<Outcome<ArchitectureGraph>> {
+  return postJson("/api/analyze-repo", { kind: "github", url, maxFiles });
 }
 
 const LOCAL_ENGINE: EngineInfo = { engine: "local", label: null, provider: null, model: null };
