@@ -3,8 +3,9 @@ import { RulesSchema } from "@/lib/rulesSchema";
 
 /** Shape of an architecture graph; shared by API validation and client-side JSON import. */
 
-const MAX_NODES = 200;
-const MAX_EDGES = 1_000;
+// Sized for the largest map the app will draw (MAX_MAPPABLE_FILES plus data-file nodes), with headroom.
+const MAX_NODES = 2_500;
+const MAX_EDGES = 20_000;
 const MAX_CODE_CHARS = 60_000;
 
 const id = z.string().min(1).max(200);
