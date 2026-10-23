@@ -14,3 +14,6 @@ tests/live/.results/
 
 # Bundled CLI
 dist/
+
+# Packaged VS Code extension
+*.vsix

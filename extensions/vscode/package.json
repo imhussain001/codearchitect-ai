@@ -1,0 +1,37 @@
+{
+  "name": "codearchitect-vscode",
+  "displayName": "CodeArchitect: Blast Radius",
+  "description": "See what a change to this file can break: dependents in the status bar, per-symbol usage CodeLens, and a shareable architecture page.",
+  "version": "0.1.0",
+  "publisher": "imhussain001",
+  "private": true,
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Visualization", "Other"],
+  "keywords": ["architecture", "dependencies", "blast radius", "impact analysis"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "codearchitect.showBlastRadius", "title": "CodeArchitect: Show blast radius of this file" },
+      { "command": "codearchitect.showUsers", "title": "CodeArchitect: Who uses this symbol?" },
+      { "command": "codearchitect.exportShare", "title": "CodeArchitect: Export shareable architecture page" },
+      { "command": "codearchitect.refresh", "title": "CodeArchitect: Re-map the workspace" }
+    ],
+    "configuration": {
+      "title": "CodeArchitect",
+      "properties": {
+        "codearchitect.maxFiles": {
+          "type": "number",
+          "default": 800,
+          "minimum": 20,
+          "description": "Most files to map. Bigger workspaces map the most architecturally relevant files and the status bar says how many were left out."
+        },
+        "codearchitect.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show \"used by N files\" above exported symbols."
+        }
+      }
+    }
+  }
+}

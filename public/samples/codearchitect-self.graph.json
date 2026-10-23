@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-23T06:25:55.880Z",
+  "exportedAt": "2026-10-23T06:36:56.961Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -3624,6 +3624,19 @@
         "message": "feat(java): map Java projects by qualified imports and same-package use",
         "phase": "Phase 49 · map Java projects by qualified imports and same-package use",
         "narrative": "feat(java): map Java projects by qualified imports and same-package use. Touches 2 mapped component(s).",
+        "addedNodeIds": [],
+        "modifiedNodeIds": [
+          "health-engine",
+          "heuristic-graph"
+        ]
+      },
+      {
+        "hash": "dce95b7",
+        "author": "imhussain001",
+        "date": "2026-10-23",
+        "message": "feat(rust): map Rust crates through their module tree",
+        "phase": "Phase 50 · map Rust crates through their module tree",
+        "narrative": "feat(rust): map Rust crates through their module tree. Touches 2 mapped component(s).",
         "addedNodeIds": [],
         "modifiedNodeIds": [
           "health-engine",

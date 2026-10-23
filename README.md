@@ -21,6 +21,7 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | 🎓 | **Easy to understand** | A guided tour on first visit, "In plain words" summaries of every component and analysis (with an effort estimate and order of work), tooltips and a glossary. |
 | 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write. |
 | 🧬 | **Provenance trace** | Select any component and trace **where it comes from** (the scripts, functions and raw input files behind a figure or result, across pipeline stages) or **what it affects** (every result that would be out of date if an input changed). The path is numbered on the map and explained in plain words. |
+| 🧩 | **VS Code extension** | `extensions/vscode`: the status bar shows how many files a change to the active file affects, CodeLens shows `used by N files` above each export, and a command lists exactly who uses a symbol (importers that don't use it are spared). Build with `npm run ext:package`. |
 | 📉 | **Architecture drift** | `npm run cli -- history .` re-analyses sampled commits and reports whether health, cycles and rule violations are improving or declining, with the commits that made it worse. `npm run view -- . --history` shows the same chart in the Story tab. |
 | 🔗 | **Shareable page** | **Export → Shareable page**, or `npm run cli -- share <folder>`, writes one self-contained `.html` file (no server, no network) with a pan/zoom diagram, search, the reading-order guide and per-component code, uses and used-by. Attach it to a PR, email it, or publish it from CI. |
 | 🧭 | **Guide (new here?)** | The first inspector tab explains an unfamiliar codebase: the shape in one sentence, the most-used components, what to read carefully before changing, and a numbered reading order. Next/Previous steps through it on the canvas. The same "Where to start" section opens the Markdown report. |
@@ -163,6 +164,7 @@ flowchart LR
 | [Architecture](docs/architecture.md) | Layers, data flow, state model, key design decisions |
 | [API reference](docs/api.md) | Every route: request, response, errors, limits |
 | [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, health scoring, script data-flow, search ranking, diff, repo mapping, git parsing, scaffolding |
+| [VS Code extension](extensions/vscode/README.md) | What the extension shows, its settings and limits, and how to build and install it |
 | [Rules, CLI and CI](docs/cli-and-ci.md) | Writing rules, the `analyze` and `pr` commands, exit codes, and the GitHub workflow |
 | [Graph format](docs/graph-format.md) | The `codearchitect/v1` JSON manifest, for building your own graphs |
 | [Development guide](docs/development.md) | Project layout, testing, adding samples and scenarios, Next.js 16 notes |
