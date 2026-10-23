@@ -247,23 +247,23 @@ export default function Page() {
     (message) => notify({ tone: "error", message }),
   );
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, maxFiles: number) => {
     setImportState((s) => ({ ...s, busy: true, error: null }));
     try {
       const upload = await readUpload(file);
       if (upload.kind === "graph") return finishImport(upload.graph);
       if (upload.files.length === 0) throw new Error("No supported source files found in the archive.");
-      const { data, warning } = await requestRepoFromFiles(upload.name, upload.files);
+      const { data, warning } = await requestRepoFromFiles(upload.name, upload.files, maxFiles);
       finishImport(data, [warning, upload.skipped ? `${upload.skipped} oversized file(s) skipped.` : ""].filter(Boolean).join(" ") || undefined);
     } catch (error) {
       setImportState((s) => ({ ...s, busy: false, error: errorMessage(error) }));
     }
   };
 
-  const analyzeGithub = async (url: string) => {
+  const analyzeGithub = async (url: string, maxFiles: number) => {
     setImportState((s) => ({ ...s, busy: true, error: null }));
     try {
-      const { data, warning } = await requestRepoFromGithub(url);
+      const { data, warning } = await requestRepoFromGithub(url, maxFiles);
       finishImport(data, warning);
     } catch (error) {
       setImportState((s) => ({ ...s, busy: false, error: errorMessage(error) }));
@@ -374,8 +374,8 @@ export default function Page() {
         isBusy={importState.busy}
         error={importState.error}
         onClose={() => setImportState({ open: false, busy: false, error: null })}
-        onUploadFile={(file) => void uploadFile(file)}
-        onGithubUrl={(url) => void analyzeGithub(url)}
+        onUploadFile={(file, maxFiles) => void uploadFile(file, maxFiles)}
+        onGithubUrl={(url, maxFiles) => void analyzeGithub(url, maxFiles)}
       />
     </div>
   );

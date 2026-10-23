@@ -27,7 +27,18 @@ const KT_NON_SOURCE = /(^|\/)src\/(test|androidTest|jvmTest|commonTest|integrati
 const RB_NON_SOURCE = /(^|\/)(spec|features)\//;
 const CONFIG_FILES = /(^|\/)[^/]*(config|rc)\.(c|m)?(js|ts)$/i;
 
-export const MAX_GRAPH_FILES = 60;
+/** Files the local engine maps by default; the most architecturally relevant ones are kept. */
+export const MAX_GRAPH_FILES = 400;
+/** The most a user may ask for: past this a canvas is slow to draw and too dense to read. */
+export const MAX_MAPPABLE_FILES = 2_000;
+export const MIN_MAPPED_FILES = 20;
+/** Files an AI model groups into components: bounded by what fits in its prompt. */
+export const MAX_AI_FILES = 60;
+
+/** A user-supplied limit, kept inside what the engine and the canvas can handle. */
+export function clampMaxFiles(value: number): number {
+  return Number.isFinite(value) ? Math.min(MAX_MAPPABLE_FILES, Math.max(MIN_MAPPED_FILES, Math.round(value))) : MAX_GRAPH_FILES;
+}
 const MAX_NODE_CODE_LINES = 120;
 
 const KIND_RULES: Array<{ kind: NodeKind; pattern: RegExp }> = [

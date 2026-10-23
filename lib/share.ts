@@ -101,13 +101,15 @@ export function renderShareHtml(graph: ArchitectureGraph): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="generator" content="CodeArchitect AI">
+<meta name="author" content="Hussain Tak">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <style>${STYLE}</style>
 </head>
 <body>
 <header>
-  <div class="brand"><strong>${escapeHtml(graph.name)}</strong><span class="sub">Health ${data.grade} · ${data.nodes.length} components · ${data.edges.length} dependencies</span></div>
+  <div class="brand"><strong>${escapeHtml(graph.name)}</strong><span class="sub">Health ${data.grade} · ${data.nodes.length} components · ${data.edges.length} dependencies</span><span class="sub credit">Made with CodeArchitect AI · &copy; 2026 Hussain Tak · Apache-2.0</span></div>
   <input id="search" type="search" placeholder="Search components (press /)" aria-label="Search components" autocomplete="off">
 </header>
 <main>
@@ -131,7 +133,7 @@ const STYLE = `
 *{box-sizing:border-box}html,body{height:100%;margin:0}
 body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--line)}
-.brand{display:flex;flex-direction:column}.brand .sub{color:var(--muted);font-size:12px}
+.brand{display:flex;flex-direction:column}.brand .sub{color:var(--muted);font-size:12px}.brand .credit{opacity:.7;font-size:11px}
 #search{min-width:220px;flex:0 1 320px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit}
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px}
 #stage{position:relative;min-height:0;background:#09090b}

@@ -82,6 +82,10 @@ Every folder of a multi-root workspace is mapped on its own, each with its own `
 }
 ```
 
+## Publishing to the Marketplace
+
+The extension is ready to publish (icon, manifest, changelog and license files are in place and checked by `npm run ext:check`). Publishing needs a Marketplace publisher account and a token that only you can create: see [Publishing the extension](publishing-the-extension.md).
+
 ## Update or remove it
 
 After pulling new changes, rebuild and reinstall over the old version:

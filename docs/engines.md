@@ -139,7 +139,7 @@ Tests: `tests/heuristicGraph.test.ts`
 |---|---|
 | Filter | Source extensions `ts tsx js jsx mjs cjs py go java kt rb cs php vue svelte`. Skips `node_modules`, build output, VCS, virtualenvs, tests/specs/stories, `.d.ts` and `*config.*` / `*rc.*` files |
 | Classify | Path regexes in order: **data** (`db`, `models`, `schema`, `prisma`, `repository`, `cache`, `redis`…) → **api** (`api`, `routes`, `handlers`, `route.ts`, `urls.py`…) → **frontend** (`.tsx`/`.jsx`/`.vue`/`.svelte`, `components`, `pages`…) → otherwise **logic** |
-| Select | Top 60 by relevance = kind weight (api/data 4, logic 3, frontend 2) − 0.1 × path depth + min(size / 20 KB, 1) |
+| Select | Top **400** (`MAX_GRAPH_FILES`; callers may ask for 20–2,000, see `clampMaxFiles`) by relevance = kind weight (api/data 4, logic 3, frontend 2) − 0.1 × path depth + min(size / 20 KB, 1) |
 | Edges | JS/TS `import … from`, `import()`, `require()` and `export … from`; Python `from x import` and `import x`. Resolves `./`, `../`, `@/` and `~/` (also under `src/`) and dotted Python modules |
 | Node data | Exports by regex. Params from the first function signature. Code truncated to 120 lines with a "… N more lines" marker |
 

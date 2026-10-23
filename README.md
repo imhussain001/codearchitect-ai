@@ -1,5 +1,7 @@
 # CodeArchitect AI
 
+*Created and owned by **Hussain Tak** ([@imhussain001](https://github.com/imhussain001)). Copyright © 2026 Hussain Tak. Licensed under the [Apache License 2.0](LICENSE).*
+
 **An interactive map of a codebase's architecture.** Map a repository into a live dependency graph, simulate what a change would break before you make it, replay how the architecture evolved, and draw new components to generate the code that wires them in.
 
 Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Analysis can run on **any major AI model** — Claude, OpenAI, Gemini, or free local models through **Ollama** / LM Studio — and falls back to a **deterministic local engine**, so the app is fully usable offline and for free.
@@ -208,6 +210,16 @@ flowchart LR
 - **Edges point from dependent to dependency**, so a blast radius is a reverse BFS from the changed node, O(V+E).
 - **AI is optional, provider-neutral and checked.** Every model's output is validated with the same Zod schemas (with one automatic repair retry for malformed JSON) and then against the graph: unknown node IDs are dropped, depths are recomputed, and "before" code always comes from the graph itself. Any model failure falls back to the local engine with a visible warning.
 
+## License and ownership
+
+**CodeArchitect AI is created, owned and maintained by Hussain Tak** ([@imhussain001](https://github.com/imhussain001)). Copyright © 2026 Hussain Tak.
+
+It is licensed under the **Apache License, Version 2.0** (full text in [LICENSE](LICENSE)). In plain words, and without replacing the license text: anyone may use, modify and redistribute the software, including commercially, **provided they keep the copyright notice and the [NOTICE](NOTICE) file (which names the author)**, mark files they changed, and do not use the author's name or marks to endorse their own product. It comes with no warranty. The license also grants a patent license from contributors and ends it for anyone who sues over the software's patents.
+
+- Contributions: unless you say otherwise, anything you submit for inclusion is licensed under the same license (section 5). Contributors are listed in [AUTHORS.md](AUTHORS.md) with their permission.
+- Third-party software keeps its own licenses: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (regenerate it with `npm run notices`). All production dependencies are permissive; `jszip` is dual-licensed and used under MIT.
+- Output you generate with the tool (reports, diagrams, shareable pages) is yours. Shareable pages and reports carry a small "made with CodeArchitect AI" credit; you may remove it from your own copies.
+
 ## Documentation
 
 | Doc | Contents |
@@ -216,6 +228,7 @@ flowchart LR
 | [API reference](docs/api.md) | Every route: request, response, errors, limits |
 | [Analysis engines](docs/engines.md) | Algorithms: impact ranking and severity, risk score, health scoring, script data-flow, search ranking, diff, repo mapping, git parsing, scaffolding |
 | [VS Code extension](docs/vscode-extension.md) | What the extension shows, how to build and install it (command line or from the window), settings, troubleshooting |
+| [Publishing the extension](docs/publishing-the-extension.md) | Creating a Marketplace publisher and token, the one command that publishes, updates, and decisions to make first |
 | [Research code](docs/research-scripts.md) | MATLAB and Python data-flow mapping: layers, provenance, stale outputs in pull requests, how scripts are read, limits |
 | [Rules, CLI and CI](docs/cli-and-ci.md) | Writing rules, the `analyze` and `pr` commands, exit codes, and the GitHub workflow |
 | [Graph format](docs/graph-format.md) | The `codearchitect/v1` JSON manifest, for building your own graphs |
@@ -224,7 +237,7 @@ flowchart LR
 ## Project status and limits
 
 - The local engine's impact diffs are exact only for **authored scenarios**. For other prompts it marks the affected lines heuristically, and an AI model is needed for concrete code edits.
-- Repository mapping by the local engine is file-level: one node per file, at most 60 files. An AI model groups files into architectural components instead.
+- Repository mapping by the local engine is file-level: one node per file, **400 files by default**, adjustable from 20 to 2,000 (the *Map up to N files* box in the import dialog, or `--max-files N` on the CLI); the most architecturally relevant files are kept and the app says how many were left out. Bigger maps are slower to use: engines take well under a second even for 2,000 files, and the canvas draws only the components on screen above 250, but selecting a component in a 1,000-component map still takes roughly a second in the development build (a production build is faster). With an AI model configured, grouping files into architectural components uses at most 60 files, because that is what fits in a prompt.
 - Applied refactors and scaffolds change the in-memory model only. Use **Export → Code base** to get the files; nothing is written to your repository.
 - Autosave is per browser (IndexedDB): it is not shared across devices or browsers, and private windows may not keep it. Export the graph to move it elsewhere. Only edits to the graph are saved, not which panel or overlay was open.
 - **Phones and tablets.** The app and the shareable page lay out in one column on a narrow screen (compact header, the map above the inspector, the minimap and the colour key trimmed so they do not cover the diagram), and the shareable page supports pinch-to-zoom. A map with dozens of components is still small on a phone: use search, the Guide tab or the page's reading order to jump to a component instead of panning. Checked by hand in a 375px browser at tablet and phone sizes; not on physical devices.
