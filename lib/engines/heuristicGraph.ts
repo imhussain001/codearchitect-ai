@@ -1,5 +1,6 @@
 import { layoutByKind, SCRIPT_LAYER_ORDER } from "@/lib/graph";
 import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
+import { importedSymbols } from "@/lib/engines/symbols";
 import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, SourceFile } from "@/lib/types";
 
 const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|cs|php|vue|svelte|m)$/i;
@@ -61,7 +62,7 @@ export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".py")) {
     return [...file.content.matchAll(PY_EXPORT)].map((m) => m[1]!).filter((n) => !n.startsWith("_"));
   }
-  return [...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!));
+  return [...new Set([...file.content.matchAll(JS_EXPORT)].map((m) => (m[1] ? `default ${m[2]}` : m[2]!)))];
 }
 
 function extractParams(file: SourceFile): CodeParam[] {
@@ -76,6 +77,8 @@ function extractParams(file: SourceFile): CodeParam[] {
       return { name: (name ?? p).replace(/[{}?]/g, "").trim(), type: type || "unknown" };
     });
 }
+
+const isScriptPath = (path: string) => /.(py|m)$/i.test(path);
 
 function stripExtension(path: string): string {
   return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|vue|svelte|m)$/i, "").replace(/\/index$/, "");
@@ -176,15 +179,27 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
   const seen = new Set<string>();
   for (const file of selected) {
     const typeOnly = typeOnlyImports(file);
+    const symbolsBySpec = isScriptPath(file.path) ? null : importedSymbols(file.content);
+    const edgeByTarget = new Map<string, DependencyEdge>();
     for (const spec of extractImports(file)) {
       const targetPath = resolveImport(file.path, spec, index);
       if (!targetPath || targetPath === file.path) continue;
       const source = idForPath.get(file.path)!;
       const target = idForPath.get(targetPath)!;
       const id = `e-${source}--${target}`;
+      const symbols = symbolsBySpec?.get(spec);
+      const existing = edgeByTarget.get(id);
+      if (existing) {
+        // Another specifier for the same file: merge what it uses; one unknown makes the whole edge unknown.
+        if (!symbols || !existing.symbols) delete existing.symbols;
+        else existing.symbols = [...new Set([...existing.symbols, ...symbols])].sort();
+        continue;
+      }
       if (seen.has(id)) continue;
       seen.add(id);
-      edges.push({ id, source, target, relation: "imports", ...(typeOnly.has(spec) ? { typeOnly: true } : {}) });
+      const edge: DependencyEdge = { id, source, target, relation: "imports", ...(typeOnly.has(spec) ? { typeOnly: true } : {}), ...(symbols ? { symbols } : {}) };
+      edgeByTarget.set(id, edge);
+      edges.push(edge);
     }
   }
 

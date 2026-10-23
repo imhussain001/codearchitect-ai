@@ -144,8 +144,9 @@ export default function Page() {
   }, [state.impactPrompt, state.selectedNodeId, dispatch, notify]);
 
   const simulateFrom = useCallback(
-    (nodeId: string) => {
+    (nodeId: string, symbol?: string) => {
       dispatch({ type: "selectNode", nodeId });
+      if (symbol) dispatch({ type: "setImpactPrompt", prompt: `Change ${symbol}` });
       dispatch({ type: "setTab", tab: "blast" });
     },
     [dispatch],

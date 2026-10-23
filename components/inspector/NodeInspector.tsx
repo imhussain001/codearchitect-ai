@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { ArrowDownRight, ArrowUpRight, MousePointerClick, Zap } from "lucide-react";
 import { Glossary } from "@/components/Glossary";
 import { CodeBlock } from "@/components/inspector/CodeBlock";
+import { ExportList } from "@/components/inspector/ExportList";
 import { describeTrace, type Trace, type TraceMode, type TraceRole } from "@/lib/engines/provenance";
 import { explainNode } from "@/lib/explain";
 import type { NodeHealth } from "@/lib/engines/health";
@@ -110,7 +111,7 @@ type Props = {
   trace: Trace | null;
   onTrace: (mode: TraceMode | null) => void;
   onSelectNode: (id: string) => void;
-  onSimulate: (id: string) => void;
+  onSimulate: (id: string, symbol?: string) => void;
 };
 
 export function NodeInspector({ graph, node, health, trace, onTrace, onSelectNode, onSimulate }: Props) {
@@ -127,6 +128,8 @@ export function NodeInspector({ graph, node, health, trace, onTrace, onSelectNod
 
   const { data } = node;
   const plain = explainNode(graph, node.id);
+  // Per-export usage needs at least one importer whose symbols were read (TypeScript/JavaScript).
+  const hasSymbolData = graph.edges.some((e) => e.target === node.id && e.symbols !== undefined);
   const label = (id: string) => graph.nodes.find((n) => n.id === id)?.data.label ?? id;
   const dependsOn = graph.edges.filter((e) => e.source === node.id);
   const usedBy = graph.edges.filter((e) => e.target === node.id);
@@ -179,14 +182,16 @@ export function NodeInspector({ graph, node, health, trace, onTrace, onSelectNod
         <CodeBlock code={data.code} title={`${data.filePath} · ${data.language}`} />
       </Section>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Section title="Exports">
+      <Section title="Exports">
+        {data.exports.length > 0 && hasSymbolData ? (
+          <ExportList graph={graph} nodeId={node.id} onSelectNode={onSelectNode} onSimulateSymbol={(symbol) => onSimulate(node.id, symbol)} />
+        ) : (
           <Chips items={data.exports} empty="None detected" />
-        </Section>
-        <Section title="Imports">
-          <Chips items={data.imports} empty="None detected" />
-        </Section>
-      </div>
+        )}
+      </Section>
+      <Section title="Imports">
+        <Chips items={data.imports} empty="None detected" />
+      </Section>
 
       <Section title="Parameters">
         {data.params.length === 0 ? (

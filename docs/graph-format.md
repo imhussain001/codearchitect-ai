@@ -65,7 +65,8 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
 { "id": "e-ctrl-db", "source": "auth-controller", "target": "users-db",
   "relation": "reads",                // calls | reads | writes | imports | publishes
   "label": "findById()", "isDraft": false,
-  "typeOnly": false }                 // optional; true = only an `import type` (ignored by health, kept by rules and blast radius)
+  "typeOnly": false,
+  "symbols": ["verifyToken"] }          // optional; names the source uses from the target ("*" = whole module). Absent = unknown                 // optional; true = only an `import type` (ignored by health, kept by rules and blast radius)
 ```
 
 **Direction:** `source` depends on `target`.
