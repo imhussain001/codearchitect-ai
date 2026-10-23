@@ -1,0 +1,58 @@
+name: Publish VS Code extension
+
+# Publishes extensions/vscode to the Visual Studio Marketplace when a tag like
+# ext-v0.2.0 is pushed. The tag must match the version in extensions/vscode/package.json.
+# Needs the repository secret VSCE_PAT (an Azure DevOps token with Marketplace > Manage).
+on:
+  push:
+    tags: ["ext-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-extension
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tag must match the extension version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(node -p "require('./extensions/vscode/package.json').version")"
+          if [ "$TAG" != "ext-v$version" ]; then
+            echo "Tag $TAG does not match extensions/vscode/package.json version $version" >&2
+            exit 1
+          fi
+
+      - name: Readiness checks and package
+        run: npm run ext:check
+
+      - name: Publish to the Marketplace
+        working-directory: extensions/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "Repository secret VSCE_PAT is not set" >&2
+            exit 1
+          fi
+          npx --yes @vscode/vsce publish --no-dependencies
+
+      - name: Keep the package with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: codearchitect-vsix
+          path: extensions/vscode/codearchitect.vsix

@@ -53,6 +53,19 @@ code --install-extension imhussain001.codearchitect-vscode
 
 `vsce publish patch` (or `minor` / `major`) bumps the version for you, but then edit the changelog heading to match before running `ext:check`.
 
+### Publishing from GitHub (automatic)
+
+`.github/workflows/publish-extension.yml` publishes when you push a tag named `ext-v<version>`. One-time setup: in the repository go to Settings → Secrets and variables → Actions → New repository secret, name it `VSCE_PAT`, and paste the Marketplace token. Then, for each release:
+
+```bash
+# after the version bump and changelog entry are merged to main
+git checkout main && git pull
+git tag ext-v0.2.0
+git push origin ext-v0.2.0
+```
+
+The workflow refuses to publish if the tag does not match `extensions/vscode/package.json`, runs `ext:check` first, and keeps the `.vsix` as a run artifact. A failed run publishes nothing, so fix and re-tag (delete the tag first: `git push --delete origin ext-v0.2.0`). Tokens expire: when one does, create a new one and update the secret.
+
 ## Other things you may want
 
 - **Open VSX** (used by VS Code forks such as VSCodium and some other editors) is a separate registry: <https://open-vsx.org>. It has its own token and `npx ovsx publish`.
