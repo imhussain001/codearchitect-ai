@@ -21,6 +21,7 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | 🎓 | **Easy to understand** | A guided tour on first visit, "In plain words" summaries of every component and analysis (with an effort estimate and order of work), tooltips and a glossary. |
 | 🔬 | **MATLAB & Python scripts** | Maps research code as a data-flow graph: entry scripts, the functions they call, and the CSV/MAT/image files they read and write. |
 | 🧬 | **Provenance trace** | Select any component and trace **where it comes from** (the scripts, functions and raw input files behind a figure or result, across pipeline stages) or **what it affects** (every result that would be out of date if an input changed). The path is numbered on the map and explained in plain words. |
+| 🔗 | **Shareable page** | **Export → Shareable page**, or `npm run cli -- share <folder>`, writes one self-contained `.html` file (no server, no network) with a pan/zoom diagram, search, the reading-order guide and per-component code, uses and used-by. Attach it to a PR, email it, or publish it from CI. |
 | 🧭 | **Guide (new here?)** | The first inspector tab explains an unfamiliar codebase: the shape in one sentence, the most-used components, what to read carefully before changing, and a numbered reading order. Next/Previous steps through it on the canvas. The same "Where to start" section opens the Markdown report. |
 | 🔬 | **Symbol-level impact** | For TypeScript/JavaScript, see which *functions and types* each file uses from another. Simulating a change to one export only flags the files that use it, and unused exports are called out. |
 | 📦 | **Import / export** | Import a repository from a ZIP or a GitHub URL. Export the diagram (PNG/SVG, matching what is on screen), a Mermaid file, a Markdown architecture report, the graph JSON, or every component's code plus a manifest that restores the exact graph. |
@@ -90,6 +91,7 @@ Shortcuts are ignored while you type in a field.
 | `npm test` | Unit tests (Vitest) |
 | `npm run graph:self` | Regenerate `public/samples/codearchitect-self.graph.json` from the current code and git history |
 | `npm run view -- <folder>` | Map a folder on your disk and open it in the app (no zip or upload) |
+| `npm run cli -- share <folder> --output map.html` | One self-contained, explorable HTML page of a folder's architecture |
 | `npm run cli -- analyze .` | Health and rule report for a folder (builds the CLI first) |
 | `npm run cli -- pr --base main` | Architecture check of the current branch against `main`; exit code 1 when it fails |
 | `npm run models` | List the model IDs each configured provider actually serves (helps pick `AI_MODEL`) |

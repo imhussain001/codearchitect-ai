@@ -243,7 +243,7 @@ export function renderSvg(nodes: readonly RenderNode[], edges: readonly RenderEd
     const kind = KIND_META[d.kind];
     const ring = d.heat ? HEALTH_META[d.heat.level].hex : (STATUS_COLOR[d.status] ?? (d.traced ? "#22d3ee" : undefined));
     const status = d.status !== "normal" && !d.heat ? STATUS_META[d.status].label : undefined;
-    out.push(`<g opacity="${d.dimmed ? 0.25 : 1}">`);
+    out.push(`<g class="node" data-id="${xml(n.id)}" opacity="${d.dimmed ? 0.25 : 1}">`);
     if (ring) out.push(`<rect x="${x - 4}" y="${y - 4}" width="${SVG_NODE_WIDTH + 8}" height="${SVG_NODE_HEIGHT + 8}" rx="16" fill="none" stroke="${ring}" stroke-width="3" opacity="0.85"/>`);
     out.push(`<rect x="${x}" y="${y}" width="${SVG_NODE_WIDTH}" height="${SVG_NODE_HEIGHT}" rx="12" fill="#18181b" stroke="${kind.hex}" stroke-width="2"${d.status === "proposed" ? ' stroke-dasharray="6 4"' : ""}/>`);
     out.push(`<text x="${x + 14}" y="${y + 26}" fill="#fafafa" font-family="${SANS}" font-size="13" font-weight="600">${xml(clip(d.label, MAX_LABEL_CHARS))}</text>`);

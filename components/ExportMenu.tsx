@@ -1,11 +1,12 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronDown, Download, FileArchive, FileJson, FileText, Image as ImageIcon, Loader2, Workflow } from "lucide-react";
+import { ChevronDown, Download, FileArchive, FileJson, FileText, Globe, Image as ImageIcon, Loader2, Workflow } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ExportKind } from "@/hooks/useExport";
 
 const ITEMS: ReadonlyArray<{ kind: ExportKind; label: string; hint: string; icon: typeof Download }> = [
+  { kind: "html", label: "Shareable page (.html)", hint: "One file anyone can open: explore, search, read the guide", icon: Globe },
   { kind: "png", label: "Diagram (PNG)", hint: "Image of the canvas as shown", icon: ImageIcon },
   { kind: "svg", label: "Diagram (SVG)", hint: "Vector, for slides and papers", icon: ImageIcon },
   { kind: "mermaid", label: "Mermaid (.mmd)", hint: "Paste into GitHub or Notion", icon: Workflow },

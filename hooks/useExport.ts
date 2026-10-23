@@ -3,10 +3,11 @@
 import { useCallback, useState } from "react";
 import type { Notice } from "@/hooks/useWorkspace";
 import { buildMarkdownReport, renderSvg, toMermaid, type ReportOptions } from "@/lib/export";
+import { renderShareHtml } from "@/lib/share";
 import { downloadBlob, downloadText, exportCodebase, fileStem, graphManifestText, svgToPngBlob } from "@/lib/portability";
 import type { ArchitectureGraph, RenderEdge, RenderNode } from "@/lib/types";
 
-export type ExportKind = "zip" | "svg" | "png" | "mermaid" | "markdown" | "json";
+export type ExportKind = "zip" | "svg" | "png" | "mermaid" | "markdown" | "json" | "html";
 
 type Inputs = {
   graph: ArchitectureGraph;
@@ -28,6 +29,7 @@ export function useExport({ graph, nodes, edges, report, notify }: Inputs) {
       try {
         if (kind === "zip") await exportCodebase(graph);
         else if (kind === "json") downloadText(graphManifestText(graph), `${stem}.graph.json`, "application/json");
+        else if (kind === "html") downloadText(renderShareHtml(graph), `${stem}-architecture.html`, "text/html");
         else if (kind === "mermaid") downloadText(toMermaid(graph), `${stem}.mmd`, "text/plain");
         else if (kind === "markdown") downloadText(buildMarkdownReport(graph, report), `${stem}-architecture.md`, "text/markdown");
         else {
