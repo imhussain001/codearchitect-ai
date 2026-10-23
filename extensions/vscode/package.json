@@ -25,6 +25,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "codearchitect.showGraph",
+        "title": "CodeArchitect: Show architecture map"
+      },
+      {
         "command": "codearchitect.showBlastRadius",
         "title": "CodeArchitect: Show blast radius of this file"
       },

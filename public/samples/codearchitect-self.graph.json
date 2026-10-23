@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-23T06:42:58.439Z",
+  "exportedAt": "2026-10-23T06:56:43.641Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -3650,6 +3650,16 @@
         "message": "feat(vscode): add an extension that shows blast radius in the editor",
         "phase": "Phase 51 · add an extension that shows blast radius in the editor",
         "narrative": "feat(vscode): add an extension that shows blast radius in the editor. Touches 0 mapped component(s).",
+        "addedNodeIds": [],
+        "modifiedNodeIds": []
+      },
+      {
+        "hash": "8bf84c1",
+        "author": "imhussain001",
+        "date": "2026-10-23",
+        "message": "docs: add research-code and VS Code extension guides, document supported languages",
+        "phase": "Phase 52 · Documentation",
+        "narrative": "README plus architecture, API, engine, format and development guides — no component code changes.",
         "addedNodeIds": [],
         "modifiedNodeIds": []
       }

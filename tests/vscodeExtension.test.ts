@@ -23,6 +23,13 @@ const state = {
   pickChoice: undefined as unknown,
   messages: [] as string[],
   written: new Map<string, string>(),
+  panel: null as null | {
+    html: string;
+    posted: Array<{ type: string; path?: string }>;
+    options: unknown;
+    onMessage: ((m: unknown) => unknown) | null;
+  },
+  editorChanged: null as null | (() => void),
   opened: [] as string[],
 };
 
@@ -67,6 +74,7 @@ vi.mock("vscode", () => {
       constructor(public base: unknown, public pattern: string) {}
     },
     StatusBarAlignment: { Left: 1 },
+    ViewColumn: { Beside: -2 },
     QuickPickItemKind: { Separator: -1 },
     window: {
       createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
@@ -91,7 +99,32 @@ vi.mock("vscode", () => {
       get activeTextEditor() {
         return state.activeEditor;
       },
-      onDidChangeActiveTextEditor: () => disposable,
+      onDidChangeActiveTextEditor: (cb: () => void) => {
+        state.editorChanged = cb;
+        return disposable;
+      },
+      createWebviewPanel: (_id: string, _title: string, _column: unknown, options: unknown) => {
+        const record = { html: "", posted: [] as Array<{ type: string; path?: string }>, options, onMessage: null as null | ((m: unknown) => unknown) };
+        state.panel = record;
+        return {
+          webview: {
+            set html(v: string) {
+              record.html = v;
+            },
+            get html() {
+              return record.html;
+            },
+            postMessage: async (m: { type: string; path?: string }) => void record.posted.push(m),
+            onDidReceiveMessage: (cb: (m: unknown) => unknown) => {
+              record.onMessage = cb;
+              return disposable;
+            },
+          },
+          onDidDispose: () => disposable,
+          reveal() {},
+          dispose() {},
+        };
+      },
       showInformationMessage: async (m: string) => void state.messages.push(m),
       showWarningMessage: async (m: string) => void state.messages.push(m),
       showQuickPick: async (items: Array<{ label: string; ref?: { path: string } }>) => {
@@ -135,6 +168,7 @@ const settle = () => new Promise((r) => setTimeout(r, 50));
 async function start() {
   state.commands.clear();
   state.messages = [];
+  state.panel = null;
   state.activeEditor = editorFor("src/auth.ts");
   const { activate } = await import("../extensions/vscode/src/extension");
   activate({ subscriptions: [] } as never);
@@ -150,7 +184,7 @@ describe("extension activation", () => {
 
   it("registers its commands and the CodeLens provider", async () => {
     await start();
-    expect([...state.commands.keys()].sort()).toEqual(["codearchitect.exportShare", "codearchitect.refresh", "codearchitect.showBlastRadius", "codearchitect.showUsers"]);
+    expect([...state.commands.keys()].sort()).toEqual(["codearchitect.exportShare", "codearchitect.refresh", "codearchitect.showBlastRadius", "codearchitect.showGraph", "codearchitect.showUsers"]);
     expect(state.lens).not.toBeNull();
   });
 
@@ -209,5 +243,59 @@ describe("extension activation", () => {
     state.activeEditor = editorFor("README.md");
     await (state.commands.get("codearchitect.showBlastRadius") as Handler)();
     expect(state.messages.at(-1)).toContain("not part of the mapped architecture");
+  });
+});
+
+describe("map panel", () => {
+  const run = (id: string) => (state.commands.get(id) as Handler)();
+
+  it("opens a scripts-enabled webview that contains the map", async () => {
+    await start();
+    await settle();
+    await run("codearchitect.showGraph");
+    expect(state.panel).not.toBeNull();
+    expect((state.panel!.options as { enableScripts: boolean }).enableScripts).toBe(true);
+    expect(state.panel!.html.startsWith("<!doctype html>")).toBe(true);
+    expect(state.panel!.html).toContain('data-id="src-auth"');
+  });
+
+  it("tells the map which file is open when it reports ready, and when the editor changes", async () => {
+    await start();
+    await settle();
+    await run("codearchitect.showGraph");
+    await state.panel!.onMessage!({ type: "ready" });
+    expect(state.panel!.posted).toEqual([{ type: "focus", path: "src/auth.ts" }]);
+
+    state.activeEditor = editorFor("src/login.ts");
+    state.editorChanged!();
+    expect(state.panel!.posted.at(-1)).toEqual({ type: "focus", path: "src/login.ts" });
+
+    state.activeEditor = editorFor("README.md"); // not part of the map: nothing to focus
+    const before = state.panel!.posted.length;
+    state.editorChanged!();
+    expect(state.panel!.posted).toHaveLength(before);
+  });
+
+  it("opens a mapped file when the page asks, and ignores anything else", async () => {
+    await start();
+    await settle();
+    await run("codearchitect.showGraph");
+    state.opened = [];
+    await state.panel!.onMessage!({ type: "open", path: "src/session.ts" });
+    expect(state.opened).toEqual(["/ws/src/session.ts"]);
+    await state.panel!.onMessage!({ type: "open", path: "../../etc/passwd" });
+    await state.panel!.onMessage!({ type: "open", path: 42 });
+    await state.panel!.onMessage!({ type: "something-else" });
+    expect(state.opened).toEqual(["/ws/src/session.ts"]);
+  });
+
+  it("re-renders the page when the map is rebuilt", async () => {
+    await start();
+    await settle();
+    await run("codearchitect.showGraph");
+    state.panel!.html = "stale";
+    await run("codearchitect.refresh");
+    await settle();
+    expect(state.panel!.html.startsWith("<!doctype html>")).toBe(true);
   });
 });

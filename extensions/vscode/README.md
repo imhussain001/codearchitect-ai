@@ -2,6 +2,7 @@
 
 See what a change to the file you are editing can break, without leaving the editor.
 
+- **Architecture map:** `CodeArchitect: Show architecture map` opens the interactive graph beside your code. It selects the file you have open, glows the files that depend on it (amber = direct, lighter = indirect) and dims the rest; click a file for its details and **Open in editor**.
 - **Status bar:** `N files affected` for the active file (direct and indirect dependents), with change-risk and what drives it in the tooltip. Click for the list; pick a file to open it.
 - **CodeLens:** `used by N files` above each exported symbol (TypeScript, JavaScript, Go, Java, Rust). Click it to see exactly which files, and which of the file's importers do *not* use the symbol.
 - **Who uses this symbol?** (`CodeArchitect: Who uses this symbol?`): a symbol-level blast radius. Importers that do not use the symbol are listed as spared, so you know what a rename really touches.

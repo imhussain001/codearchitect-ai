@@ -125,6 +125,8 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px}
 #diagram{position:absolute;inset:0;cursor:grab;touch-action:none}#diagram.drag{cursor:grabbing}
 #diagram svg{display:block;width:100%;height:100%}
 g.node{cursor:pointer;transition:opacity .15s}g.node.sel{filter:drop-shadow(0 0 8px #a78bfa)}
+g.node.imp-direct{filter:drop-shadow(0 0 7px #f59e0b)}g.node.imp-indirect{filter:drop-shadow(0 0 5px #fcd34d)}g.node.dim{opacity:.16}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.action{padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}.action:hover{border-color:var(--accent)}.action.on{border-color:#f59e0b;color:#fbbf24}
 #zoom{position:absolute;right:12px;bottom:12px;display:flex;gap:6px}
 #zoom button{min-width:34px;height:34px;border-radius:8px;border:1px solid #3f3f46;background:#18181b;color:#e4e4e7;font:inherit;cursor:pointer}
 #hint{position:absolute;left:12px;bottom:8px;margin:0;font-size:11px;color:#71717a;pointer-events:none}
@@ -158,6 +160,9 @@ const SCRIPT = `
   var svg = document.querySelector('#diagram svg');
   var stage = document.getElementById('diagram');
   var selected = null;
+  var impactOn = false;
+  // Inside a VS Code webview this gives a way to ask the editor to open a file; elsewhere it is null.
+  var vscodeApi = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
   var READABLE_WIDTH = 700;
 
   function el(tag, props, kids) {
@@ -230,13 +235,37 @@ const SCRIPT = `
     selected = id;
     svg.querySelectorAll('g.node').forEach(function (g) { g.classList.toggle('sel', g.getAttribute('data-id') === id); });
     if (recenter) center(id);
+    applyImpact();
     showNode(byId[id]);
+  }
+
+  /* ---- blast radius: everything that depends on the selected component, nearest first ---- */
+  function impactOf(id) {
+    var depth = {}; depth[id] = 0;
+    var queue = [id];
+    while (queue.length) {
+      var x = queue.shift();
+      (usedBy[x] || []).forEach(function (p) { if (depth[p] === undefined) { depth[p] = depth[x] + 1; queue.push(p); } });
+    }
+    return depth;
+  }
+  function applyImpact() {
+    svg.querySelectorAll('g.node').forEach(function (g) { g.classList.remove('imp-direct', 'imp-indirect', 'dim'); });
+    if (!impactOn || !selected) return;
+    var depth = impactOf(selected);
+    svg.querySelectorAll('g.node').forEach(function (g) {
+      var id = g.getAttribute('data-id');
+      if (id === selected) return;
+      var d = depth[id];
+      g.classList.add(d === undefined ? 'dim' : d === 1 ? 'imp-direct' : 'imp-indirect');
+    });
   }
 
   /* ---- panels ---- */
   function showGuide() {
     selected = null;
     svg.querySelectorAll('g.node.sel').forEach(function (g) { g.classList.remove('sel'); });
+    applyImpact();
     panel.textContent = '';
     panel.appendChild(el('h2', { text: D.name }));
     if (D.description) panel.appendChild(el('p', { class: 'muted', text: D.description }));
@@ -262,6 +291,16 @@ const SCRIPT = `
     var k = el('span', { class: 'kind', text: kind.label }); k.style.color = kind.color;
     panel.appendChild(k);
     panel.appendChild(el('p', { class: 'path', text: n.filePath }));
+    var total = Object.keys(impactOf(n.id)).length - 1;
+    var impactBtn = el('button', { class: 'action' + (impactOn ? ' on' : ''), type: 'button', text: (impactOn ? 'Hide' : 'Highlight') + ' what depends on this (' + total + ')' });
+    impactBtn.addEventListener('click', function () { impactOn = !impactOn; applyImpact(); showNode(n); });
+    var actions = el('div', { class: 'actions' }, [impactBtn]);
+    if (vscodeApi) {
+      var openBtn = el('button', { class: 'action', type: 'button', text: 'Open in editor' });
+      openBtn.addEventListener('click', function () { vscodeApi.postMessage({ type: 'open', path: n.filePath }); });
+      actions.appendChild(openBtn);
+    }
+    panel.appendChild(actions);
     if (n.description) panel.appendChild(el('p', { text: n.description }));
     panel.appendChild(el('h3', { text: 'Change risk ' + n.score + ' / 100' }));
     panel.appendChild(el('p', { class: n.score >= 35 ? 'warn' : 'muted', text: n.reasons.length ? n.reasons.join(' - ') : 'Few connections, low risk.' }));
@@ -295,6 +334,17 @@ const SCRIPT = `
     if (e.key === '/' && document.activeElement !== search) { e.preventDefault(); search.focus(); }
     if (e.key === 'Escape') { search.value = ''; search.dispatchEvent(new Event('input')); search.blur(); showGuide(); }
   });
+
+  /* ---- VS Code bridge: the editor tells the map which file is open ---- */
+  window.addEventListener('message', function (e) {
+    var m = e.data;
+    if (!m || m.type !== 'focus') return;
+    var hit = D.nodes.filter(function (n) { return n.filePath === m.path; })[0];
+    if (!hit) return;
+    impactOn = true;
+    select(hit.id, true);
+  });
+  if (vscodeApi) vscodeApi.postMessage({ type: 'ready' });
 
   showGuide();
 })();
