@@ -125,6 +125,20 @@ export function detectModule(imports: readonly string[], dirs: readonly string[]
   // A path that is exactly a prefix of others (the root package, imported as "<module>") also votes for itself.
   for (const path of imports) for (const prefix of votes.keys()) if (path === prefix) votes.set(prefix, (votes.get(prefix) ?? 0) + 1);
 
+  // No directory name matched (the only internal import is the module root itself): fall back to the
+  // repository name. A module root looks like host/owner/repo, optionally ending in a /vN major version.
+  if (votes.size === 0 && repoName) {
+    const wanted = repoName.toLowerCase();
+    const counts = new Map<string, number>();
+    for (const path of imports) {
+      if (!path.split("/")[0]!.includes(".")) continue; // the standard library has no dot in its first segment
+      const trimmed = path.replace(new RegExp(String.raw`/v\d+$`), "");
+      const last = trimmed.slice(trimmed.lastIndexOf("/") + 1).toLowerCase();
+      if (last.length >= 2 && (wanted === last || wanted.startsWith(`${last}-`) || wanted.startsWith(`${last}_`))) counts.set(path, (counts.get(path) ?? 0) + 1);
+    }
+    return [...counts].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0]?.[0];
+  }
+
   const ranked = [...votes].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length);
   const best = ranked[0];
   if (!best) return undefined;
