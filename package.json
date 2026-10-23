@@ -32,9 +32,9 @@
     "@xyflow/react": "^12.12.0",
     "clsx": "^2.1.1",
     "jszip": "^3.10.2",
-    "lucide-react": "^1.58.0",
+    "lucide-react": "^1.60.0",
     "next": "^16.4.2",
-    "openai": "^7.34.0",
+    "openai": "^7.39.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"
@@ -44,9 +44,9 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@types/vscode": "1.85.0",
+    "@types/vscode": "1.140.0",
     "esbuild": "^0.28.2",
-    "postcss": "^8.5.30",
+    "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
