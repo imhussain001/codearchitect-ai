@@ -1,5 +1,6 @@
 import { layoutByKind, SCRIPT_LAYER_ORDER } from "@/lib/graph";
 import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
+import { goEdges, goExports, goImports } from "@/lib/engines/goImports";
 import { importedSymbols } from "@/lib/engines/symbols";
 import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, SourceFile } from "@/lib/types";
 
@@ -29,14 +30,14 @@ const JS_IMPORT = /(?:import\s[^'"]*?from\s*|import\s*\(\s*|require\s*\(\s*|expo
 const PY_IMPORT = /^\s*(?:from\s+([.\w]+)\s+import|import\s+([.\w]+))/gm;
 const JS_EXPORT = /export\s+(default\s+)?(?:async\s+)?(?:function\*?|const|let|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)/g;
 const PY_EXPORT = /^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm;
-const FIRST_SIGNATURE = /(?:function\s+\w+|def\s+\w+|\w+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)/;
+const FIRST_SIGNATURE = /(?:function\s+\w+|func\s+\w+|def\s+\w+|\w+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)/;
 
 /**
  * Specifiers imported only through `import type` / `export type` (and never by value) in a file.
  * Type-only imports are erased at runtime, so they are not architectural coupling.
  */
 export function typeOnlyImports(file: SourceFile): Set<string> {
-  if (file.path.endsWith(".py") || file.path.endsWith(".m")) return new Set();
+  if (/\.(py|m|go)$/.test(file.path)) return new Set();
   const typeSpecs = new Set<string>();
   const valueSpecs = new Set<string>();
   for (const match of file.content.matchAll(JS_IMPORT)) {
@@ -48,6 +49,7 @@ export function typeOnlyImports(file: SourceFile): Set<string> {
 }
 
 export function extractImports(file: SourceFile): string[] {
+  if (file.path.endsWith(".go")) return [...new Set(goImports(file.content).map((i) => i.path))];
   const specs = new Set<string>();
   const pattern = file.path.endsWith(".py") ? PY_IMPORT : JS_IMPORT;
   for (const match of file.content.matchAll(pattern)) {
@@ -59,6 +61,7 @@ export function extractImports(file: SourceFile): string[] {
 
 export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".m")) return matlabFunctions(file.content);
+  if (file.path.endsWith(".go")) return goExports(file.content);
   if (file.path.endsWith(".py")) {
     return [...file.content.matchAll(PY_EXPORT)].map((m) => m[1]!).filter((n) => !n.startsWith("_"));
   }
@@ -78,10 +81,11 @@ function extractParams(file: SourceFile): CodeParam[] {
     });
 }
 
-const isScriptPath = (path: string) => /.(py|m)$/i.test(path);
+/** Files whose imports are analysed by their own language module instead of the JS/TS symbol scanner. */
+const hasOwnImportAnalysis = (path: string) => /\.(py|m|go)$/i.test(path);
 
 function stripExtension(path: string): string {
-  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|vue|svelte|m)$/i, "").replace(/\/index$/, "");
+  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|vue|svelte|m)$/i, "").replace(/\/index$/, "");
 }
 
 function joinPath(base: string, relative: string): string {
@@ -179,7 +183,7 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
   const seen = new Set<string>();
   for (const file of selected) {
     const typeOnly = typeOnlyImports(file);
-    const symbolsBySpec = isScriptPath(file.path) ? null : importedSymbols(file.content);
+    const symbolsBySpec = hasOwnImportAnalysis(file.path) ? null : importedSymbols(file.content);
     const edgeByTarget = new Map<string, DependencyEdge>();
     for (const spec of extractImports(file)) {
       const targetPath = resolveImport(file.path, spec, index);
@@ -201,6 +205,13 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
       edgeByTarget.set(id, edge);
       edges.push(edge);
     }
+  }
+
+  // Go: importer → the files that define the exported names it uses.
+  for (const edge of goEdges(selected, idForPath, name)) {
+    if (seen.has(edge.id)) continue;
+    seen.add(edge.id);
+    edges.push(edge);
   }
 
   // MATLAB/Python scripts: add function calls, data files read/written, and layer names.

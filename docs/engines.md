@@ -145,6 +145,16 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Go (`lib/engines/goImports.ts`)
+
+Go imports whole packages (directories), but the map shows files. For each import the mapper links the importer to the **files that declare the exported names it uses**: `auth.VerifyToken` produces an edge to the file defining `VerifyToken`, with `symbols: ["VerifyToken"]`. That keeps Go file-level like the other languages and makes blast radius symbol-precise (see below).
+
+- **Module path:** `go.mod` is not part of the analysed files, so it is inferred by vote: an import that ends in the path of a package directory we have votes for the remaining prefix as the module path. Highest vote wins; a tie is broken by the repository name, otherwise nothing is linked. Standard-library and third-party imports never match.
+- **Imports:** single, grouped `import ( … )`, aliased, `_` (side effect) and `.` (dot) forms. Side-effect and dot imports, and imports whose names cannot be placed in a file, link to the first 5 files of the package, with no symbols.
+- **Exports:** capitalised top-level `func`, `type`, `var`, `const` (including grouped blocks). Methods and struct fields are not listed.
+- **Entry points:** `cmd/` and `main.go` are treated as entry points, so they are not reported as unconnected.
+- **Limits:** lexical, no `go list`. A package whose name differs from its directory is handled through its `package` clause, but build tags, generated code, embedded interfaces and names reached only through methods are not followed. A repo whose only internal import has a third-party look-alike path can be mis-detected; one vote is accepted so small projects still link. Not yet run against a large real-world Go repository.
+
 ## Repo guide (`lib/engines/guide.ts`)
 
 `buildGuide(graph)` answers "where do I start?" from graph facts alone (deterministic; no AI).
