@@ -2,10 +2,11 @@ import { layoutByKind, SCRIPT_LAYER_ORDER } from "@/lib/graph";
 import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
 import { goEdges, goExports, goImports } from "@/lib/engines/goImports";
 import { javaEdges, javaExports, javaImports } from "@/lib/engines/javaImports";
+import { rustEdges, rustExports, rustUses } from "@/lib/engines/rustImports";
 import { importedSymbols } from "@/lib/engines/symbols";
 import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, SourceFile } from "@/lib/types";
 
-const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|java|kt|rb|cs|php|vue|svelte|m)$/i;
+const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|kt|rb|cs|php|vue|svelte|m)$/i;
 const IGNORED_PATHS =
   /(^|\/)(node_modules|dist|build|out|\.next|\.git|vendor|testdata|venv|\.venv|__pycache__|coverage|target)(\/|$)|\.d\.ts$|(\.|_)(test|spec|stories)\.|(^|\/)(__tests__|tests?)\//i;
 /** Java test classes (`FooTest.java`, `FooIT.java`). Case-sensitive on purpose: `Audit.java` is not a test. */
@@ -35,14 +36,14 @@ const JS_IMPORT = /(?:import\s[^'"]*?from\s*|import\s*\(\s*|require\s*\(\s*|expo
 const PY_IMPORT = /^\s*(?:from\s+([.\w]+)\s+import|import\s+([.\w]+))/gm;
 const JS_EXPORT = /export\s+(default\s+)?(?:async\s+)?(?:function\*?|const|let|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)/g;
 const PY_EXPORT = /^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm;
-const FIRST_SIGNATURE = /(?:function\s+\w+|func\s+\w+|def\s+\w+|\w+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)/;
+const FIRST_SIGNATURE = /(?:function\s+\w+|func\s+\w+|fn\s+\w+|def\s+\w+|\w+\s*=\s*(?:async\s*)?)\s*\(([^)]*)\)/;
 
 /**
  * Specifiers imported only through `import type` / `export type` (and never by value) in a file.
  * Type-only imports are erased at runtime, so they are not architectural coupling.
  */
 export function typeOnlyImports(file: SourceFile): Set<string> {
-  if (/\.(py|m|go|java)$/.test(file.path)) return new Set();
+  if (/\.(py|m|go|java|rs)$/.test(file.path)) return new Set();
   const typeSpecs = new Set<string>();
   const valueSpecs = new Set<string>();
   for (const match of file.content.matchAll(JS_IMPORT)) {
@@ -55,6 +56,7 @@ export function typeOnlyImports(file: SourceFile): Set<string> {
 
 export function extractImports(file: SourceFile): string[] {
   if (file.path.endsWith(".go")) return [...new Set(goImports(file.content).map((i) => i.path))];
+  if (file.path.endsWith(".rs")) return [...new Set(rustUses(file.content).map((u) => u.segments.join("::")))];
   if (file.path.endsWith(".java")) return [...new Set(javaImports(file.content).map((i) => i.name + (i.wildcard ? ".*" : "")))];
   const specs = new Set<string>();
   const pattern = file.path.endsWith(".py") ? PY_IMPORT : JS_IMPORT;
@@ -69,6 +71,7 @@ export function extractExports(file: SourceFile): string[] {
   if (file.path.endsWith(".m")) return matlabFunctions(file.content);
   if (file.path.endsWith(".go")) return goExports(file.content);
   if (file.path.endsWith(".java")) return javaExports(file.content);
+  if (file.path.endsWith(".rs")) return rustExports(file.content);
   if (file.path.endsWith(".py")) {
     return [...file.content.matchAll(PY_EXPORT)].map((m) => m[1]!).filter((n) => !n.startsWith("_"));
   }
@@ -89,10 +92,10 @@ function extractParams(file: SourceFile): CodeParam[] {
 }
 
 /** Files whose imports are analysed by their own language module instead of the JS/TS symbol scanner. */
-const hasOwnImportAnalysis = (path: string) => /\.(py|m|go|java)$/i.test(path);
+const hasOwnImportAnalysis = (path: string) => /\.(py|m|go|java|rs)$/i.test(path);
 
 function stripExtension(path: string): string {
-  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|java|vue|svelte|m)$/i, "").replace(/\/index$/, "");
+  return path.replace(/\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|vue|svelte|m)$/i, "").replace(/\/index$/, "");
 }
 
 function joinPath(base: string, relative: string): string {
@@ -124,7 +127,8 @@ function labelFor(path: string): string {
   const parts = stripExtension(path).split("/");
   const base = parts.pop() ?? path;
   // Next.js-style `page`/`route` files are named after their folder.
-  const name = ["page", "route", "index", "layout"].includes(base) ? `${parts.pop() ?? base}/${base}` : base;
+  // Rust `mod.rs` is the module named by its folder.
+  const name = base === "mod" && parts.length > 0 ? parts.pop()! : ["page", "route", "index", "layout"].includes(base) ? `${parts.pop() ?? base}/${base}` : base;
   return name.replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -216,6 +220,13 @@ export function buildHeuristicGraph(name: string, files: readonly SourceFile[], 
 
   // Go: importer → the files that define the exported names it uses.
   for (const edge of goEdges(selected, idForPath, name)) {
+    if (seen.has(edge.id)) continue;
+    seen.add(edge.id);
+    edges.push(edge);
+  }
+
+  // Rust: `use` paths resolved through the module tree.
+  for (const edge of rustEdges(selected, idForPath, name)) {
     if (seen.has(edge.id)) continue;
     seen.add(edge.id);
     edges.push(edge);
