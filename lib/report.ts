@@ -1,3 +1,4 @@
+import type { SymbolChange } from "@/lib/engines/changedSymbols";
 import { analyzeHealth, healthIssueKey, riskiestNodes, type HealthIssue, type HealthReport } from "@/lib/engines/health";
 import { evaluateRules, violationKey } from "@/lib/engines/rules";
 import { traceProvenance } from "@/lib/engines/provenance";
@@ -19,6 +20,23 @@ export type Snapshot = {
 export function takeSnapshot(graph: ArchitectureGraph, rules?: readonly ArchRule[]): Snapshot {
   return { graph, health: analyzeHealth(graph), violations: evaluateRules(graph, rules ?? graph.rules ?? []) };
 }
+
+/** What a change does to the exports of one file, and who that reaches. */
+export type SymbolImpact = {
+  path: string;
+  label: string;
+  modified: string[];
+  added: string[];
+  removed: string[];
+  /** False when part of the change sits outside every export, so importers are not narrowed. */
+  precise: boolean;
+  /** Direct importers that use a changed or removed name (or whose usage is unknown). */
+  affected: Array<{ label: string; symbols: string[] }>;
+  /** Direct importers that import the file but none of the changed names. */
+  spared: string[];
+  /** Importers in files this change did not touch that still import a name the change removed. */
+  stillImporting: Array<{ label: string; symbols: string[] }>;
+};
 
 export type Comparison = {
   base: Snapshot | null;
@@ -42,14 +60,62 @@ export type Comparison = {
   riskiestTouched: { nodeId: string; score: number } | null;
   /** Output files (data nodes) that a changed script or input feeds, and so may be out of date until it is re-run. */
   staleOutputs: Array<{ output: string; because: string[] }>;
+  /** Per changed file: which exports changed and which importers use them. Empty unless the caller supplied symbol changes. */
+  symbolImpact: SymbolImpact[];
 };
 
 function byKey<T>(items: readonly T[], key: (item: T) => string): Map<string, T> {
   return new Map(items.map((item) => [key(item), item]));
 }
 
+/** Who each changed file's changed exports reach, using the symbols recorded on import edges. */
+function computeSymbolImpact(base: Snapshot | null, head: Snapshot, changedFiles: readonly string[], changes: readonly SymbolChange[]): SymbolImpact[] {
+  const changedSet = new Set(changedFiles.map((f) => f.split("\\").join("/")));
+  const out: SymbolImpact[] = [];
+
+  for (const change of changes) {
+    if (!change.modified.length && !change.added.length && !change.removed.length && change.precise) continue;
+    const inHead = nodeIdForPath(change.path, head.graph.nodes);
+    const graph = inHead ? head.graph : base?.graph;
+    const nodeId = inHead ?? (base ? nodeIdForPath(change.path, base.graph.nodes) : undefined);
+    if (!graph || !nodeId) continue;
+
+    const label = (id: string) => nodeById(graph.nodes, id)?.data.label ?? id;
+    const reached = new Set([...change.modified, ...change.removed]);
+    const incoming = graph.edges.filter((e) => !e.isDraft && e.target === nodeId && e.source !== nodeId && e.relation !== "writes");
+
+    const affected: SymbolImpact["affected"] = [];
+    const spared: string[] = [];
+    const seenAffected = new Set<string>();
+    for (const e of incoming) {
+      if (seenAffected.has(e.source)) continue;
+      const used = e.symbols === undefined ? null : e.symbols.includes("*") ? [...reached] : e.symbols.filter((s) => reached.has(s));
+      // Unknown usage, an imprecise change, or a name in common all count as affected; only a known miss is spared.
+      if (!change.precise || used === null || used.length > 0) {
+        seenAffected.add(e.source);
+        affected.push({ label: label(e.source), symbols: used ?? [] });
+      } else if (reached.size > 0) spared.push(label(e.source));
+    }
+
+    // A name this change removed that an importer, left untouched by the change, still imports.
+    const stillImporting: SymbolImpact["stillImporting"] = [];
+    if (inHead && change.removed.length) {
+      for (const e of head.graph.edges) {
+        if (e.isDraft || e.target !== nodeId || !e.symbols) continue;
+        const importerPath = nodeById(head.graph.nodes, e.source)?.data.filePath;
+        if (importerPath && changedSet.has(importerPath)) continue;
+        const gone = e.symbols.filter((s) => change.removed.includes(s));
+        if (gone.length) stillImporting.push({ label: label(e.source), symbols: gone });
+      }
+    }
+
+    out.push({ path: change.path, label: nodeById(graph.nodes, nodeId)?.data.label ?? change.path, modified: change.modified, added: change.added, removed: change.removed, precise: change.precise, affected, spared, stillImporting });
+  }
+  return out;
+}
+
 /** What a change set does to the architecture: new/fixed problems and who it can ripple to. */
-export function compareSnapshots(base: Snapshot | null, head: Snapshot, changedFiles: readonly string[] = []): Comparison {
+export function compareSnapshots(base: Snapshot | null, head: Snapshot, changedFiles: readonly string[] = [], symbolChanges: readonly SymbolChange[] = []): Comparison {
   const baseIssues = byKey(base?.health.issues ?? [], healthIssueKey);
   const headIssues = byKey(head.health.issues, healthIssueKey);
   const baseViolations = byKey(base?.violations ?? [], violationKey);
@@ -102,6 +168,8 @@ export function compareSnapshots(base: Snapshot | null, head: Snapshot, changedF
     .map(([out, because]) => ({ output: nodeById(head.graph.nodes, out)!.data.label, because }))
     .sort((a, b) => a.output.localeCompare(b.output));
 
+  const symbolImpact = computeSymbolImpact(base, head, changedFiles, symbolChanges);
+
   const touched = [...changedNodeIds].map((id) => head.health.nodes[id]).filter((n) => n !== undefined);
   const riskiest = touched.sort((a, b) => b.score - a.score)[0];
 
@@ -121,6 +189,7 @@ export function compareSnapshots(base: Snapshot | null, head: Snapshot, changedF
     removedStillUsedBy,
     riskiestTouched: riskiest ? { nodeId: riskiest.nodeId, score: riskiest.score } : null,
     staleOutputs,
+    symbolImpact,
   };
 }
 
@@ -133,6 +202,8 @@ export type CheckOptions = {
   failOnNewViolations?: boolean;
   /** Fail when the overall health score drops by more than this many points. Off by default. */
   maxHealthDrop?: number;
+  /** Fail when a change removes an export that another, untouched file still imports. Off by default (the match is heuristic). */
+  failOnRemovedExports?: boolean;
 };
 
 export type CheckResult = { passed: boolean; failures: string[] };
@@ -158,6 +229,9 @@ export function evaluateCheck(c: Comparison, options: CheckOptions = {}): CheckR
   const errors = (failOnNewCycles ? distinctNewViolations(c) : c.newViolations).filter((v) => v.severity === "error");
   if (failOnNewViolations && errors.length) failures.push(`${errors.length} new architecture rule ${errors.length === 1 ? "violation" : "violations"}`);
 
+  const dangling = c.symbolImpact.reduce((n, s) => n + s.stillImporting.length, 0);
+  if (options.failOnRemovedExports && dangling) failures.push(`${dangling} removed export${dangling === 1 ? "" : "s"} still imported by files this change does not touch`);
+
   if (maxHealthDrop !== undefined && -c.scoreDelta > maxHealthDrop) failures.push(`health score dropped by ${-c.scoreDelta} (limit ${maxHealthDrop})`);
   return { passed: failures.length === 0, failures };
 }
@@ -181,6 +255,7 @@ export function comparisonToJson(c: Comparison, check: CheckResult) {
       unmappedFiles: c.unmappedFiles,
       removedStillUsedBy: c.removedStillUsedBy,
       staleOutputs: c.staleOutputs,
+      changedSymbols: c.symbolImpact,
     },
   };
 }
@@ -245,6 +320,26 @@ export function renderMarkdown(c: Comparison, check: CheckResult): string {
       lines.push(`Riskiest component touched: **${label(c.riskiestTouched.nodeId)}** (change-risk ${c.riskiestTouched.score}, ${level}).`);
     }
     for (const r of c.removedStillUsedBy) lines.push(`⚠ Removed **${escapeCell(r.removed)}** is still used by ${listWithMore(r.usedBy, 5).join(", ")}.`);
+    if (c.symbolImpact.length) {
+      lines.push("", "**Changed exports**");
+      for (const s of c.symbolImpact) {
+        const parts = [
+          s.modified.length ? `modified ${s.modified.map((n) => `\`${n}\``).join(", ")}` : "",
+          s.removed.length ? `removed ${s.removed.map((n) => `\`${n}\``).join(", ")}` : "",
+          s.added.length ? `added ${s.added.map((n) => `\`${n}\``).join(", ")}` : "",
+        ].filter(Boolean);
+        lines.push("", `- **${escapeCell(s.label)}** (\`${escapeCell(s.path)}\`): ${parts.join("; ") || "changes outside any export"}`);
+        if (!s.precise) {
+          lines.push(`  - Part of the change is outside every export (module-level code), so all **${s.affected.length}** importer${s.affected.length === 1 ? "" : "s"} are counted: ${listWithMore(s.affected.map((a) => escapeCell(a.label)), 5).join(", ")}.`);
+          continue;
+        }
+        if (s.modified.length || s.removed.length) {
+          lines.push(`  - **${s.affected.length}** file${s.affected.length === 1 ? "" : "s"} use${s.affected.length === 1 ? "s" : ""} ${s.affected.length === 1 ? "a changed name" : "the changed names"}${s.affected.length ? `: ${listWithMore(s.affected.map((a) => escapeCell(a.label) + (a.symbols.length ? ` (${a.symbols.map((n) => `\`${n}\``).join(", ")})` : "")), 5).join(", ")}` : ""}.`);
+          if (s.spared.length) lines.push(`  - **${s.spared.length}** other file${s.spared.length === 1 ? "" : "s"} import${s.spared.length === 1 ? "s" : ""} it but none of those names: ${listWithMore(s.spared.map(escapeCell), 5).join(", ")}.`);
+        }
+        for (const m of s.stillImporting) lines.push(`  - ⚠ Removed ${m.symbols.map((n) => `\`${n}\``).join(", ")} is still imported by ${escapeCell(m.label)}, which this change does not touch.`);
+      }
+    }
     if (c.staleOutputs.length) {
       lines.push("", `**${c.staleOutputs.length}** output file${c.staleOutputs.length === 1 ? "" : "s"} may be out of date until the pipeline is re-run:`);
       for (const s of listWithMore(c.staleOutputs.map((s) => `- \`${escapeCell(s.output)}\` _(from ${listWithMore(s.because, 3).map(escapeCell).join(", ")})_`))) lines.push(s);
