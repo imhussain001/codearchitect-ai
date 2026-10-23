@@ -40,6 +40,7 @@ const EdgeSchema = z.object({
   label: shortText.optional(),
   isDraft: z.boolean().optional(),
   typeOnly: z.boolean().optional(),
+  samePackage: z.boolean().optional(),
   symbols: z.array(z.string()).optional(),
 });
 

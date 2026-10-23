@@ -24,6 +24,7 @@ Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Anal
 | 📉 | **Architecture drift** | `npm run cli -- history .` re-analyses sampled commits and reports whether health, cycles and rule violations are improving or declining, with the commits that made it worse. `npm run view -- . --history` shows the same chart in the Story tab. |
 | 🔗 | **Shareable page** | **Export → Shareable page**, or `npm run cli -- share <folder>`, writes one self-contained `.html` file (no server, no network) with a pan/zoom diagram, search, the reading-order guide and per-component code, uses and used-by. Attach it to a PR, email it, or publish it from CI. |
 | 🧭 | **Guide (new here?)** | The first inspector tab explains an unfamiliar codebase: the shape in one sentence, the most-used components, what to read carefully before changing, and a numbered reading order. Next/Previous steps through it on the canvas. The same "Where to start" section opens the Markdown report. |
+| 🐹 | **Go** | Maps Go modules: each import links a file to the files that define the exported names it uses (`auth.VerifyToken` → the file declaring it), so blast radius is symbol-precise. `cmd/` and `main.go` count as entry points. |
 | 🔬 | **Symbol-level impact** | For TypeScript/JavaScript, see which *functions and types* each file uses from another. Simulating a change to one export only flags the files that use it, and unused exports are called out. |
 | 📦 | **Import / export** | Import a repository from a ZIP or a GitHub URL. Export the diagram (PNG/SVG, matching what is on screen), a Mermaid file, a Markdown architecture report, the graph JSON, or every component's code plus a manifest that restores the exact graph. |
 | 💾 | **Autosave** | Edits (drafts, applied changes, rules, imports) are saved in this browser a moment after you make them and restored on reload. **Reset** returns to the original. |
@@ -62,7 +63,7 @@ npm run dev
 - `Cannot find module …`: run `npm install` (step 2).
 - Port already in use: run `npm run dev -- --port 3100`.
 
-**Map your own project:** with the app stopped, run `npm run view -- C:path	oyourproject` (any folder with TypeScript, JavaScript, MATLAB or Python). It analyses the folder, starts the app and opens your browser with that project loaded. Stop the usual `npm run dev` first: one app instance can only show one folder.
+**Map your own project:** with the app stopped, run `npm run view -- C:\path\to\your\project` (any folder with TypeScript, JavaScript, Go, MATLAB or Python). It analyses the folder, starts the app and opens your browser with that project loaded. Stop the usual `npm run dev` first: one app instance can only show one folder.
 
 **Try it:**
 

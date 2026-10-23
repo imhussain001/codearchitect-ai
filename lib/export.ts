@@ -40,7 +40,7 @@ export function toMermaid(graph: ArchitectureGraph): string {
     const from = ids.get(e.source);
     const to = ids.get(e.target);
     if (e.isDraft || !from || !to) continue;
-    const dotted = e.relation === "writes" || e.typeOnly;
+    const dotted = e.relation === "writes" || e.typeOnly || e.samePackage;
     const label = e.label ?? (e.relation === "writes" || e.relation === "reads" ? e.relation : undefined);
     const arrow = dotted ? "-.->" : "-->";
     lines.push(label ? `  ${from} ${arrow}|"${mermaidText(label)}"| ${to}` : `  ${from} ${arrow} ${to}`);
@@ -107,7 +107,7 @@ export function buildMarkdownReport(graph: ArchitectureGraph, options: ReportOpt
 
   lines.push("## Dependencies", "", "An arrow means *uses*; `writes` means *produces*.", "");
   for (const e of edges.slice(0, MAX_LISTED_DEPENDENCIES)) {
-    const note = e.relation === "calls" ? "" : ` _(${e.relation}${e.typeOnly ? ", type only" : ""})_`;
+    const note = e.relation === "calls" ? "" : ` _(${e.relation}${e.typeOnly ? ", type only" : ""}${e.samePackage ? ", same package" : ""})_`;
     lines.push(`- ${label(e.source)} → ${label(e.target)}${note}`);
   }
   if (edges.length > MAX_LISTED_DEPENDENCIES) lines.push(`- …and ${edges.length - MAX_LISTED_DEPENDENCIES} more`);

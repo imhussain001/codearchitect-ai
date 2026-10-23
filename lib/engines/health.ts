@@ -23,8 +23,8 @@ const WATCH_FROM = 35;
 const RISKY_FROM = 65;
 
 /** Files nothing imports by design: framework entry points, scripts and config. */
-const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
-const ENTRY_DIR = /(^|\/)(scripts?|bin|cli)\//i;
+const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|main\.go|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
+const ENTRY_DIR = /(^|\/)(scripts?|bin|cli|cmd)\//i;
 
 export function isLikelyEntryPoint(filePath: string): boolean {
   const path = filePath.split("\\").join("/");
@@ -167,7 +167,7 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
   const ids = new Set(nodes.map((n) => n.id));
   const allEdges = graph.edges.filter((e) => !e.isDraft && ids.has(e.source) && ids.has(e.target) && e.source !== e.target);
   // Type-only imports are erased at runtime: they do not make a hub, a cycle or a crossed layer.
-  const edges = allEdges.filter((e) => !e.typeOnly);
+  const edges = allEdges.filter((e) => !e.typeOnly && !e.samePackage);
   const connected = new Set(allEdges.flatMap((e) => [e.source, e.target]));
   const label = (id: string) => nodeById(graph.nodes, id)?.data.label ?? id;
 
