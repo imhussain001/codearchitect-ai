@@ -1,0 +1,43 @@
+name: Publish to Open VSX
+
+# Manual run: publishes an existing tag (for example ext-v0.2.0) to Open VSX only.
+# Use it when a release went out before OVSX_PAT existed, or when the Open VSX step failed.
+# Needs the repository secret OVSX_PAT and the namespace created once (see docs/publishing-the-extension.md).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, for example ext-v0.2.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  openvsx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Package
+        run: npm run ext:check
+
+      - name: Publish to Open VSX
+        working-directory: extensions/vscode
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "Repository secret OVSX_PAT is not set" >&2
+            exit 1
+          fi
+          npx --yes ovsx publish codearchitect.vsix -p "$OVSX_PAT"
