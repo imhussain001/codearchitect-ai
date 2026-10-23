@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeDrift, measure, REGRESSION_MIN_DROP, renderDriftMarkdown, sampleIndices, sparkline, type DriftPoint } from "@/lib/engines/drift";
+import { analyzeDrift, isWorse, measure, refineDrift, REGRESSION_MIN_DROP, renderDriftMarkdown, sampleIndices, sparkline, type DriftPoint } from "@/lib/engines/drift";
 import { takeSnapshot } from "@/lib/report";
 import { authMicroservice } from "@/lib/mockData";
 
@@ -114,5 +114,87 @@ describe("graph schema", () => {
     const good = { ...authMicroservice, drift: [point(1, 90), point(2, 85)] };
     expect(GraphSchema.safeParse(good).success).toBe(true);
     expect(GraphSchema.safeParse({ ...authMicroservice, drift: [point(1, 140)] }).success).toBe(false);
+  });
+});
+
+describe("refineDrift", () => {
+  const history = (scoreAt: (i: number) => number, extra: (i: number) => Partial<DriftPoint> = () => ({})) =>
+    Array.from({ length: 100 }, (_, i) => point(i + 1, scoreAt(i), { hash: `h${i}`.padEnd(40, "0"), ...extra(i) }));
+  const measurer = (series: DriftPoint[]) => {
+    const calls: number[] = [];
+    return { calls, measureAt: (i: number) => (calls.push(i), series[i] ?? null) };
+  };
+  const sampled = (series: DriftPoint[], every = 10) => series.map((p, i) => ({ index: i, point: p })).filter((m) => m.index % every === 0 || m.index === series.length - 1);
+
+  it("finds the exact commit where a score drop happened, with its parent measured", () => {
+    const series = history((i) => (i < 37 ? 90 : 70));
+    const { calls, measureAt } = measurer(series);
+    const { points, extra } = refineDrift(sampled(series), measureAt, 12);
+    const indices = points.map((p) => p.index);
+    expect(indices).toContain(36);
+    expect(indices).toContain(37);
+    expect(extra).toBe(calls.length);
+    expect(extra).toBeLessThanOrEqual(4); // log2(10) steps
+    const report = analyzeDrift(points.map((p) => p.point));
+    expect(report.regressions[0]!.hash).toBe(series[37]!.hash);
+    expect(report.regressions[0]!.scoreDelta).toBe(-20);
+  });
+
+  it("finds a commit that introduced a cycle even when the score barely moves", () => {
+    const series = history(() => 90, (i) => ({ cycles: i >= 52 ? 1 : 0 }));
+    const { points } = refineDrift(sampled(series), measurer(series).measureAt, 12);
+    expect(points.map((p) => p.index)).toEqual(expect.arrayContaining([51, 52]));
+    expect(analyzeDrift(points.map((p) => p.point)).regressions[0]!.hash).toBe(series[52]!.hash);
+  });
+
+  it("does nothing when nothing regressed, when ends are neighbours, or with no budget", () => {
+    const flat = history(() => 90);
+    const m1 = measurer(flat);
+    expect(refineDrift(sampled(flat), m1.measureAt, 12).extra).toBe(0);
+    expect(m1.calls).toEqual([]);
+
+    const step = history((i) => (i < 37 ? 90 : 70));
+    const adjacent = [{ index: 36, point: step[36]! }, { index: 37, point: step[37]! }];
+    expect(refineDrift(adjacent, measurer(step).measureAt, 12).extra).toBe(0);
+    expect(refineDrift(sampled(step), measurer(step).measureAt, 0).extra).toBe(0);
+  });
+
+  it("never exceeds the budget and spends it on the biggest regression first", () => {
+    // A small drop at 15 and a big one at 65.
+    const series = history((i) => (i < 15 ? 90 : i < 65 ? 86 : 50));
+    const { calls, measureAt } = measurer(series);
+    const { points, extra } = refineDrift(sampled(series), measureAt, 3);
+    expect(extra).toBe(3);
+    expect(calls.every((i) => i > 60 && i < 70)).toBe(true); // all three probes went to the big one
+    expect(points.length).toBe(sampled(series).length + 3);
+  });
+
+  it("treats a commit with nothing to measure as not the culprit", () => {
+    const series = history((i) => (i < 37 ? 90 : 70));
+    const { points } = refineDrift(sampled(series), (i) => (i < 30 ? null : series[i]!), 12);
+    expect(points.map((p) => p.index)).toContain(37);
+  });
+
+  it("reuses points it already has, keeps the list in commit order and counts only new measurements", () => {
+    const series = history((i) => (i < 37 ? 90 : 70));
+    const { points } = refineDrift(sampled(series), measurer(series).measureAt, 12);
+    const indices = points.map((p) => p.index);
+    expect(indices).toEqual([...indices].sort((a, b) => a - b));
+    expect(new Set(indices).size).toBe(indices.length);
+  });
+});
+
+describe("isWorse and the footer note", () => {
+  it("matches the regression rule used by analyzeDrift", () => {
+    expect(isWorse(point(1, 90), point(2, 90 - REGRESSION_MIN_DROP))).toBe(true);
+    expect(isWorse(point(1, 90), point(2, 90 - REGRESSION_MIN_DROP + 1))).toBe(false);
+    expect(isWorse(point(1, 90), point(2, 95, { cycles: 1 }))).toBe(true);
+  });
+
+  it("says how many extra commits were measured, only when some were", () => {
+    const report = analyzeDrift([point(1, 90), point(2, 80)]);
+    expect(renderDriftMarkdown(report, "demo", { extra: 3 })).toContain("3 extra commits were measured");
+    expect(renderDriftMarkdown(report, "demo", { extra: 1 })).toContain("1 extra commit was measured");
+    expect(renderDriftMarkdown(report, "demo")).not.toContain("extra commit");
   });
 });

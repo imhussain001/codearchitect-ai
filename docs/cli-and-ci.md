@@ -77,14 +77,15 @@ Maps the folder (git-tracked and untracked-but-not-ignored files when it is a gi
 | `--output <file>` | Write to a file instead of stdout |
 | `--no-fail` | Exit 0 even when an error-level rule is broken |
 
-### `history [dir] [--max-points N] [--format markdown|json] [--output file]`
+### `history [dir] [--max-points N] [--refine N] [--format markdown|json] [--output file]`
 
 Shows how the architecture drifted. It samples up to `--max-points` (default 30) evenly spaced commits on the first-parent history, always including the first and last, reads each commit's files through git (nothing is checked out), and records health score and grade, cycles, rule violations, components and dependencies.
 
 - A commit is a **regression** if health drops by 3+ points, or it adds a cycle or a rule violation; the worst are listed first (a new cycle counts like 10 points, a new violation like 5). **Improvements** are the mirror image.
 - The trend is *improving*/*declining* when the net change across the range is 3+ points, otherwise *steady*.
 - The **current** rules (`.codearchitect.json`) are applied to every commit, so changes reflect code, not rule edits.
-- Each point uses the same heuristic mapper as `analyze`, so absolute numbers are indicative; the direction and the biggest drops are the useful part. Sampling means a short-lived regression between two samples can be missed: raise `--max-points` for finer resolution.
+- Each point uses the same heuristic mapper as `analyze`, so absolute numbers are indicative; the direction and the biggest drops are the useful part. Sampling can still miss a regression that was introduced and fixed again between two samples: raise `--max-points` for finer resolution.
+- **Pinpointing.** Sampling alone can only say that health dropped *between* two sampled commits, which blames whichever sampled commit comes next (often an innocent one). So for each regression whose two ends are not neighbouring commits, the tool **bisects**: it measures the commit in the middle, keeps the half that still contains the first commit worse than the earlier end, and repeats until the culprit and its parent are both measured, so the reported delta is exact. `--refine N` is the budget of extra measurements (default 12, spent on the biggest regressions first; `0` turns it off) and the report's footer says how many were used. Each probe re-analyses one more commit, so a regression costs about log2(gap) probes. It assumes a regression persists once introduced: if it was fixed and re-broken inside one gap, bisecting finds one of the transitions. The pinpointed commits are added to the series.
 - `view --history` stores the series on the graph (`drift`) and the Story tab draws it, marking regressions in red.
 
 ### `share [dir] [--output file.html]`
