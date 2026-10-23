@@ -15,7 +15,7 @@ import type {
   StoryNarrative,
 } from "@/lib/types";
 
-export type InspectorTab = "inspector" | "blast" | "health" | "story" | "builder";
+export type InspectorTab = "guide" | "inspector" | "blast" | "health" | "story" | "builder";
 export type AsyncStatus = "idle" | "running" | "error";
 export type Notice = { tone: "info" | "warning" | "error"; message: string };
 

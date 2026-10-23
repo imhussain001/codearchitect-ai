@@ -84,3 +84,12 @@ describe("renderSvg", () => {
     expect(width).toBeGreaterThan(0);
   });
 });
+
+describe("report onboarding section", () => {
+  it("opens with where to start, ahead of the component tables", () => {
+    const md = buildMarkdownReport(authMicroservice);
+    expect(md).toContain("## Where to start");
+    expect(md.indexOf("## Where to start")).toBeLessThan(md.indexOf("## Components"));
+    expect(md).toContain("Start here");
+  });
+});

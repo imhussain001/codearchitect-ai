@@ -1,3 +1,4 @@
+import { buildGuide } from "@/lib/engines/guide";
 import { analyzeHealth } from "@/lib/engines/health";
 import { describeTrace, type Trace } from "@/lib/engines/provenance";
 import { evaluateRules } from "@/lib/engines/rules";
@@ -85,6 +86,15 @@ export function buildMarkdownReport(graph: ArchitectureGraph, options: ReportOpt
   );
 
   lines.push("## Diagram", "", "```mermaid", toMermaid(graph).trimEnd(), "```", "");
+
+  const guide = buildGuide(graph);
+  if (guide.path.length > 0) {
+    lines.push("## Where to start", "", guide.headline, "");
+    guide.path.forEach((s, i) => lines.push(`${i + 1}. **${cell(s.label)}**: ${cell(s.why)}`));
+    if (guide.omitted > 0) lines.push(`
+…and ${guide.omitted} more component${guide.omitted === 1 ? "" : "s"} listed below.`);
+    lines.push("");
+  }
 
   lines.push("## Components");
   for (const kind of layerOrder(graph)) {

@@ -145,6 +145,16 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Repo guide (`lib/engines/guide.ts`)
+
+`buildGuide(graph)` answers "where do I start?" from graph facts alone (deterministic; no AI).
+
+- **Entry points:** components with no incoming edge that use something and are not data files. A route that another component calls over HTTP is *not* an entry point; the flow starts at its caller.
+- **Reading order:** from each entry point (most outgoing links first), follow dependencies depth-first, most-used first, so one flow is read top to bottom before the next. Anything unreachable (cycles with no entry, isolated parts) follows, most important first. Capped at 12 steps; `omitted` says how many are left out.
+- **Roles:** *entry*, *core* (used by 3+), *leaf* (uses nothing), *support*. Each step's "why" is built from who uses it and what it uses, plus the first sentence of an authored description (heuristic placeholders are skipped).
+- **Most used / read carefully:** top components by fan-in, and the highest change-risk ones from the health analysis.
+- **Limits:** importance is structural (links), not semantic; a heavily used utility outranks a small but central business rule. `writes` edges count as flow but not as "use".
+
 ## Symbol-level coupling (`lib/engines/symbols.ts`)
 
 For TypeScript/JavaScript, each import edge records *which names* the importer actually uses (`symbols`), not just that it imports the file.
