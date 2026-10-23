@@ -66,7 +66,7 @@ A bare `ArchitectureGraph`, without the envelope, is also accepted.
   "relation": "reads",                // calls | reads | writes | imports | publishes
   "label": "findById()", "isDraft": false,
   "typeOnly": false,
-  "samePackage": false,               // optional; Go/Java: both files share a package (ignored by cycle detection)
+  "samePackage": false,               // optional; Go/Java: both files share a package; Rust: the import climbs to an ancestor module (ignored by cycle detection)
   "symbols": ["verifyToken"] }          // optional; names the source uses from the target ("*" = whole module). Absent = unknown                 // optional; true = only an `import type` (ignored by health, kept by rules and blast radius)
 ```
 

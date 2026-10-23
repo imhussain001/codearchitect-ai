@@ -145,6 +145,17 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Rust (`lib/engines/rustImports.ts`)
+
+Files form a module tree under each crate's `src/` (`a.rs` and `a/mod.rs` are module `a`; `lib.rs`/`main.rs` are the root). A `use` path names a module or an item, so the edge goes to the file of the longest module prefix, with the item after it as the symbol.
+
+- **Paths:** `crate::`, `self::`, `super::` (one or more), a child module in scope, and **workspace crates by name** (the name is the crate directory's, with `-` as `_`, since `Cargo.toml` is not analysed). Nested groups (`use a::{b, c::D as E, self}`), `pub use`, `pub(crate) use` and globs are expanded. A module imported by name (`use crate::net::server;`) gets the items used through it (`server::run` → `run`). `std`, `core` and external crates never match.
+- **`super::`:** a child using its parent's items is routine, so an edge that climbs to an ancestor is marked `samePackage` (ignored by cycle detection, counted for fan-in and blast radius).
+- **Scope:** `self::`/`super::` inside an inline `mod x { }` or a function body is relative to that scope, not the file, so those uses are skipped (this is what makes `#[cfg(test)] mod tests { use super::*; }` harmless). `crate::` paths are followed at any depth.
+- **Exports:** top-level `pub` (including `pub(crate)`) fn, struct, enum, trait, type, const, static, mod, union, and `#[macro_export]` macros. `mod.rs` files are labelled by their folder.
+- **Entry points:** `main.rs`, `lib.rs` and `src/bin/*`.
+- **Limits:** lexical. No macro expansion, `#[path]` attributes, `extern crate` renames, trait or method resolution, or `cfg`-dependent modules. Rust allows module cycles inside a crate, but they are still reported like any other cycle. Run against `sharkdp/fd` (22 files, 47 links): paths and symbols resolve; it reported one real two-way dependency (`dir_entry` ↔ `filesystem`).
+
 ## Java (`lib/engines/javaImports.ts`)
 
 A Java file declares one or more top-level types, and an import names a type by its fully qualified name, so the edge goes to the file declaring that type.
