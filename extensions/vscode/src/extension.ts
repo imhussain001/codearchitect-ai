@@ -11,7 +11,7 @@ import { ArchIndex, type FileRef, type WorkspaceFile } from "./core";
  * hold a `src/auth.ts` each without clashing. Dependencies *between* folders are not followed.
  */
 
-const LANGUAGES = ["typescript", "typescriptreact", "javascript", "javascriptreact", "go", "java", "rust", "python"];
+const LANGUAGES = ["typescript", "typescriptreact", "javascript", "javascriptreact", "go", "java", "rust", "python", "csharp"];
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mjs,cjs,go,java,rs,py,m}";
 const EXCLUDE_GLOB = "**/{node_modules,dist,build,out,.next,.git,target,vendor,venv,.venv,__pycache__,coverage}/**";
 const MAX_FILE_BYTES = 200 * 1024;

@@ -156,6 +156,19 @@ Python imports are followed **by name**, so a file's links say what it uses, not
 - **Exports:** `__all__` if the file defines it, else public top-level `def`, `class` and assignments (names not starting with `_`).
 - **Limits:** lexical. `sys.path` changes, `importlib`, `__import__`, conditional imports of the same name, attribute access through objects (`obj.method()`), and calls inside a single module are not followed. Run against `psf/requests` (20 source files): 63 links, 60 with names, its `TYPE_CHECKING` imports flagged, Health B with no false cycles.
 
+## C# (`lib/engines/csharpImports.ts`)
+
+C# imports whole **namespaces**, not types, and a namespace can span many files, so links are made by name: a file uses type `T` when it mentions `T` and `T`'s namespace is visible to it.
+
+- **Visible namespaces:** the file's own namespace and every enclosing one (`A.B.C` sees `A.B` and `A`), every `using Namespace;` in the file, every `global using` anywhere in the repository, and the global namespace. Block (`namespace A.B { }`, nested) and file-scoped (`namespace A.B;`) forms are both read; nested types are not mapped, only top-level ones (class, struct, interface, enum, record, delegate).
+- **Other ways a type is reached:** `using Alias = Ns.Type;`, `using static Ns.Type;` (links to that type's file), and names written out in full (`Acme.Data.User.Empty`).
+- **Ambiguity:** a name declared in several visible namespaces links to the nearest (own, then enclosing), otherwise to all of them. A `partial` class links to every part.
+- **Same namespace:** a link to a type in the file's own or an enclosing namespace needs no `using`, so it is marked `samePackage` (ignored by cycle detection, kept for fan-in and blast radius); a link through a `using` is a real dependency.
+- **Extension methods:** `x.Slug()` never names the static class that declares `Slug`, so a file that calls a method an in-repo `static` class declares with `this` is linked to that class when its namespace is visible.
+- **Skipped:** `obj/`, `bin/Debug` and `bin/Release`, `*.Designer.cs`, `*.g.cs`, `*.generated.cs`, any `*AssemblyInfo*.cs`, `*.Tests` projects (also dotted like `*.Tests.Benchmarks`) and `*Test.cs` / `*Tests.cs` (case-sensitive, so `Contest.cs` stays).
+- **Conventions:** `*Controller.cs` and `*Hub.cs` are API, `*Repository.cs`, `*DbContext.cs`, `*Entity.cs` and `Migrations/` are data; `Program.cs`, `Startup.cs`, controllers and hubs are entry points.
+- **Limits:** lexical, no compiler or project files. Types reached only through `var`, reflection or dependency injection by interface name are linked only if the name appears; a method whose name matches an extension method's can be over-linked; strings (including interpolated holes) are blanked, so a type named only inside `$"{...}"` is missed. Run against `jbogard/MediatR` (83 files) and `FluentValidation/FluentValidation` (142 files): found and fixed unlinked extension-method classes and test/assembly-info files; both now map with no unlinked source files.
+
 ## Rust (`lib/engines/rustImports.ts`)
 
 Files form a module tree under each crate's `src/` (`a.rs` and `a/mod.rs` are module `a`; `lib.rs`/`main.rs` are the root). A `use` path names a module or an item, so the edge goes to the file of the longest module prefix, with the item after it as the symbol.
