@@ -90,7 +90,7 @@ export type DependencyEdge = {
   isDraft?: boolean;
   /** Only `import type`: erased at runtime. Health ignores it; blast radius and rules still count it. */
   typeOnly?: boolean;
-  /** Go: both files are in one package, which uses names across files without importing. Health ignores these (file-level loops inside a package are normal); rules and blast radius keep them. */
+  /** Go and Java: both files are in one package, which uses names across files without importing. Cycle detection ignores these (loops between files of one package are normal); fan-in, rules and blast radius keep them. */
   samePackage?: boolean;
   /** Names the source uses from the target (`*` = the whole module). Absent when unknown, e.g. non-JS/TS files. */
   symbols?: string[];

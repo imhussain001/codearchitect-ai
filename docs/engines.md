@@ -145,6 +145,16 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Java (`lib/engines/javaImports.ts`)
+
+A Java file declares one or more top-level types, and an import names a type by its fully qualified name, so the edge goes to the file declaring that type.
+
+- **Imports:** `import a.b.C;` → the file declaring `a.b.C` (symbol `C`). `import static a.b.C.m;` → that file (symbol `m`). A nested type (`a.b.Outer.Inner`) resolves to its outer type's file. `import a.b.*;` links the files of package `a.b` whose public type names the importer mentions. The JDK and external libraries never match a file in the set.
+- **Same package:** classes in one package use each other with no import, so they are linked by name and marked `samePackage`. Cycle detection ignores these (bidirectional associations between entities are routine); fan-in, hubs, rules and blast radius keep them.
+- **Types:** top-level `class`, `interface`, `enum`, `record` and `@interface` only (found by brace depth, ignoring comments and strings). Exports are the public ones.
+- **Conventions:** `*Controller`, `*Resource`, `*Endpoint` are "API"; `*Repository`, `*Dao`, `*Entity` are "data"; `*Controller`, `*Configuration`, `*Config`, `*Application`, `*Main` and `*App` count as entry points (the framework wires them, not an import). `*Test`, `*Tests`, `*IT` (case-sensitive, so `Audit.java` stays), `src/test/`, `package-info.java` and `module-info.java` are skipped.
+- **Limits:** lexical. Members used through an instance, annotation-driven wiring (injection by type with no import), reflection, Lombok-generated code and Kotlin are not followed; a type reached only by a fully qualified name in code (no import) is missed. Run against `spring-projects/spring-petclinic` (30 classes): imports and same-package links resolved, Health A, domain entities riskiest.
+
 ## Go (`lib/engines/goImports.ts`)
 
 Go imports whole packages (directories), but the map shows files. For each import the mapper links the importer to the **files that declare the exported names it uses**: `auth.VerifyToken` produces an edge to the file defining `VerifyToken`, with `symbols: ["VerifyToken"]`. That keeps Go file-level like the other languages and makes blast radius symbol-precise (see below).
@@ -152,7 +162,7 @@ Go imports whole packages (directories), but the map shows files. For each impor
 - **Module path:** `go.mod` is not part of the analysed files, so it is inferred by vote: an import that ends in the path of a package directory we have votes for the remaining prefix as the module path. Highest vote wins; a tie is broken by the repository name, otherwise nothing is linked. Standard-library and third-party imports never match.
 - **Imports:** single, grouped `import ( … )`, aliased, `_` (side effect) and `.` (dot) forms. Side-effect and dot imports, and imports whose names cannot be placed in a file, link to the first 5 files of the package, with no symbols.
 - **Exports:** capitalised top-level `func`, `type`, `var`, `const` (including grouped blocks). Methods and struct fields are not listed.
-- **Same-package coupling:** files in one package use each other's top-level names (exported or not) without importing, so a file that uses a name another file declares gets an edge marked `samePackage`. Health ignores these edges (file-level loops inside a package are normal in Go; package-level cycles are impossible), while rules and blast radius keep them. Over-approximates: a local variable named like a package-level function counts; names shorter than 3 characters, `init` and `main` are skipped; build-tagged variants that declare the same name all get linked.
+- **Same-package coupling:** files in one package use each other's top-level names (exported or not) without importing, so a file that uses a name another file declares gets an edge marked `samePackage`. Cycle detection ignores these edges (file-level loops inside a package are normal in Go; package-level cycles are impossible), while fan-in, rules and blast radius keep them. Over-approximates: a local variable named like a package-level function counts; names shorter than 3 characters, `init` and `main` are skipped; build-tagged variants that declare the same name all get linked.
 - **Entry points:** `cmd/` and `main.go` are treated as entry points, so they are not reported as unconnected.
 - **Limits:** lexical, no `go list`. A package whose name differs from its directory is handled through its `package` clause, but build tags, generated code, embedded interfaces and names reached only through methods are not followed. A repo whose only internal import has a third-party look-alike path can be mis-detected; one vote is accepted so small projects still link. Run against `gin-gonic/gin` (59 files, 8 packages): module detected, 191 links, Health B with its three genuinely large files flagged, no false cycles. `testdata/` folders are ignored.
 
