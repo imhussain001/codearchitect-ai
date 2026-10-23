@@ -133,3 +133,93 @@ describe("scope-relative uses", () => {
     expect(g.nodes.map((n) => n.data.label).sort()).toEqual(["Lib", "Net"]);
   });
 });
+
+describe("found by mapping ripgrep, anyhow and friends", () => {
+  it("maps a crate whose root is not under src/ (a custom [[bin]] path)", () => {
+    const g = buildHeuristicGraph("rg", [
+      { path: "crates/core/main.rs", content: `mod flags;\nmod haystack;\nuse crate::flags::Mode;\nfn main() { let _ = Mode::Search; haystack::scan(); }\n` },
+      { path: "crates/core/flags/mod.rs", content: `mod defs;\npub enum Mode { Search }\npub use defs::Flag;\n` },
+      { path: "crates/core/flags/defs.rs", content: `use super::Mode;\npub struct Flag(Mode);\n` },
+      { path: "crates/core/haystack.rs", content: `pub fn scan() {}\n` },
+    ]);
+    const at = (a: string, b: string) => g.edges.find((e) => g.nodes.find((n) => n.id === e.source)!.data.filePath === a && g.nodes.find((n) => n.id === e.target)!.data.filePath === b);
+    expect(at("crates/core/main.rs", "crates/core/flags/mod.rs")?.symbols).toEqual(["Mode"]);
+    expect(at("crates/core/main.rs", "crates/core/haystack.rs")?.symbols).toEqual(["scan"]);
+    expect(at("crates/core/flags/mod.rs", "crates/core/flags/defs.rs")?.symbols).toEqual(["Flag"]);
+    expect(at("crates/core/flags/defs.rs", "crates/core/flags/mod.rs")?.samePackage).toBe(true);
+  });
+
+  it("treats `crate::` items that live in the crate root as an ancestor link, so a child and its parent are not a cycle", () => {
+    const g = buildHeuristicGraph("gs", [
+      { path: "src/lib.rs", content: `mod glob;\npub use crate::glob::Glob;\npub struct Error;\n` },
+      { path: "src/glob.rs", content: `use crate::Error;\npub struct Glob(Error);\n` },
+    ]);
+    expect(g.edges).toHaveLength(2);
+    expect(g.edges.filter((e) => e.samePackage)).toHaveLength(1);
+    expect(analyzeHealth(g).issues.filter((i) => i.kind === "cycle")).toEqual([]);
+  });
+
+  it("leaves out files that only exist under #[cfg(test)], and what they declare", () => {
+    const g = buildHeuristicGraph("t", [
+      { path: "src/lib.rs", content: `pub mod real;\n#[cfg(test)]\nmod testutil;\n` },
+      { path: "src/real.rs", content: `pub fn f() {}\n` },
+      { path: "src/testutil.rs", content: `mod helpers;\npub fn t() { crate::real::f(); }\n` },
+      { path: "src/testutil/helpers.rs", content: `pub fn h() {}\n` },
+    ]);
+    expect(g.nodes.map((n) => n.data.filePath).sort()).toEqual(["src/lib.rs", "src/real.rs"]);
+  });
+
+  it("links a module used as `x::item` after `mod x;` with no use statement", () => {
+    const g = buildHeuristicGraph("t", [
+      { path: "src/lib.rs", content: `mod literal;\npub fn run() { literal::build(); let _ = literal::Kind::A; }\n` },
+      { path: "src/literal.rs", content: `pub fn build() {}\npub enum Kind { A }\n` },
+    ]);
+    expect(g.edges.map((e) => e.symbols)).toEqual([["Kind", "build"]]);
+  });
+
+  it("links a fully written-out crate:: path in code", () => {
+    const g = buildHeuristicGraph("t", [
+      { path: "src/lib.rs", content: `mod config;\nmod app;\n` },
+      { path: "src/app.rs", content: `pub fn go() { let _ = crate::config::load(); }\n` },
+      { path: "src/config.rs", content: `pub fn load() {}\n` },
+    ]);
+    const e = g.edges.find((x) => g.nodes.find((n) => n.id === x.source)!.data.filePath === "src/app.rs");
+    expect(e?.symbols).toEqual(["load"]);
+  });
+
+  it("does not turn a use group's prefix into an extra link", () => {
+    const g = buildHeuristicGraph("t", [
+      { path: "src/main.rs", content: `mod net;\nuse crate::net::{client::Client, server};\nfn main() { let _ = Client; server::run(); }\n` },
+      { path: "src/net/mod.rs", content: `pub mod client;\npub mod server;\n` },
+      { path: "src/net/client.rs", content: `pub struct Client;\n` },
+      { path: "src/net/server.rs", content: `pub fn run() {}\n` },
+    ]);
+    const fromMain = g.edges.filter((e) => g.nodes.find((n) => n.id === e.source)!.data.filePath === "src/main.rs");
+    expect(fromMain.map((e) => g.nodes.find((n) => n.id === e.target)!.data.filePath).sort()).toEqual(["src/net/client.rs", "src/net/server.rs"]);
+  });
+
+  it("prefers a child module over a workspace crate of the same name", () => {
+    const g = buildHeuristicGraph("ws", [
+      { path: "crates/index/src/lib.rs", content: `pub use index::Index;\nmod index;\n` },
+      { path: "crates/index/src/index.rs", content: `pub struct Index;\n` },
+    ]);
+    expect(g.edges).toHaveLength(1);
+    expect(g.nodes.find((n) => n.id === g.edges[0]!.target)!.data.filePath).toBe("crates/index/src/index.rs");
+  });
+
+  it("treats build.rs as an entry point", () => {
+    const g = buildHeuristicGraph("t", [{ path: "build.rs", content: `fn main() {}\n` }, { path: "src/lib.rs", content: `pub fn f() {}\n` }]);
+    const orphans = analyzeHealth(g).issues.filter((i) => i.kind === "orphan").flatMap((i) => i.nodeIds);
+    expect(orphans.map((id) => g.nodes.find((n) => n.id === id)!.data.filePath)).not.toContain("build.rs");
+  });
+});
+
+describe("non-source assets", () => {
+  it("skips Maven site resources and minified bundles", async () => {
+    const { isAnalyzableSource } = await import("@/lib/engines/heuristicGraph");
+    expect(isAnalyzableSource("src/site/resources/images/svg/diagrams.js")).toBe(false);
+    expect(isAnalyzableSource("web/app.min.js")).toBe(false);
+    expect(isAnalyzableSource("src/main/java/a/B.java")).toBe(true);
+    expect(isAnalyzableSource("src/app.js")).toBe(true);
+  });
+});

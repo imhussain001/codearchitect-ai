@@ -182,3 +182,26 @@ describe("same-package edges and health", () => {
     expect(graph.edges.some((e) => e.samePackage)).toBe(false);
   });
 });
+
+describe("module detection from the repository name", () => {
+  it("finds the module root when it is the only internal import (a library and its doc subpackage)", () => {
+    expect(detectModule(["github.com/spf13/cobra", "fmt", "os"], ["", "doc"], "cobra")).toBe("github.com/spf13/cobra");
+    expect(detectModule(["github.com/go-chi/chi/v5"], [""], "chi")).toBe("github.com/go-chi/chi/v5");
+  });
+
+  it("accepts a repository folder name with a branch suffix, but not an unrelated import", () => {
+    expect(detectModule(["github.com/spf13/cobra"], [""], "cobra-main")).toBe("github.com/spf13/cobra");
+    expect(detectModule(["github.com/other/lib"], [""], "cobra")).toBeUndefined();
+    expect(detectModule(["fmt", "net/http"], [""], "http")).toBeUndefined(); // standard library: no dot in the first segment
+  });
+
+  it("links a subpackage to the root package it imports", () => {
+    const g = buildHeuristicGraph("cobra", [
+      { path: "command.go", content: `package cobra\n\ntype Command struct{}\n\nfunc New() *Command { return nil }\n` },
+      { path: "doc/man.go", content: `package doc\n\nimport "github.com/spf13/cobra"\n\nfunc Gen(c *cobra.Command) {}\n` },
+    ]);
+    expect(g.edges).toHaveLength(1);
+    expect(g.edges[0]!.symbols).toEqual(["Command"]);
+    expect(g.edges[0]!.samePackage).toBeUndefined();
+  });
+});

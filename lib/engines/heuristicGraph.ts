@@ -2,7 +2,7 @@ import { layoutByKind, SCRIPT_LAYER_ORDER } from "@/lib/graph";
 import { analyzeScriptFiles, matlabFunctions } from "@/lib/engines/scripts";
 import { goEdges, goExports, goImports } from "@/lib/engines/goImports";
 import { javaEdges, javaExports, javaImports } from "@/lib/engines/javaImports";
-import { rustEdges, rustExports, rustUses } from "@/lib/engines/rustImports";
+import { rustEdges, rustExports, rustTestOnlyPaths, rustUses } from "@/lib/engines/rustImports";
 import { parseImports as parsePythonImports, pythonEdges, pythonExports } from "@/lib/engines/pythonImports";
 import { importedSymbols } from "@/lib/engines/symbols";
 import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, SourceFile } from "@/lib/types";
@@ -10,6 +10,8 @@ import type { ArchitectureGraph, ArchNode, CodeParam, DependencyEdge, NodeKind, 
 const SOURCE_EXTENSIONS = /\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|kt|rb|cs|php|vue|svelte|m)$/i;
 const IGNORED_PATHS =
   /(^|\/)(node_modules|dist|build|out|\.next|\.git|vendor|testdata|venv|\.venv|__pycache__|coverage|target)(\/|$)|\.d\.ts$|(\.|_)(test|spec|stories)\.|(^|\/)(__tests__|tests?)\//i;
+/** Maven site resources (generated diagrams, vendored scripts) and minified bundles are not source. */
+const NON_SOURCE_ASSETS = /(^|\/)src\/site\/|\.min\.(js|mjs)$/i;
 /** Java test classes (`FooTest.java`, `FooIT.java`). Case-sensitive on purpose: `Audit.java` is not a test. */
 const JAVA_TESTS = /[a-z0-9](Test|Tests|IT)\.java$/;
 /** Java files that declare no types: documentation and module descriptors. */
@@ -30,7 +32,7 @@ export function classifyPath(path: string): NodeKind {
 }
 
 export function isAnalyzableSource(path: string): boolean {
-  return SOURCE_EXTENSIONS.test(path) && !IGNORED_PATHS.test(path) && !CONFIG_FILES.test(path) && !JAVA_TESTS.test(path) && !JAVA_NON_CODE.test(path);
+  return SOURCE_EXTENSIONS.test(path) && !IGNORED_PATHS.test(path) && !CONFIG_FILES.test(path) && !JAVA_TESTS.test(path) && !JAVA_NON_CODE.test(path) && !NON_SOURCE_ASSETS.test(path);
 }
 
 const JS_IMPORT = /(?:import\s[^'"]*?from\s*|import\s*\(\s*|require\s*\(\s*|export\s[^'"]*?from\s*)['"]([^'"]+)['"]/g;
@@ -161,7 +163,10 @@ function relevance(file: SourceFile): number {
 }
 
 export function selectGraphFiles(files: readonly SourceFile[], maxFiles: number = MAX_GRAPH_FILES): { selected: SourceFile[]; warnings: string[] } {
-  const candidates = files.filter((f) => isAnalyzableSource(f.path));
+  const analyzable = files.filter((f) => isAnalyzableSource(f.path));
+  // `#[cfg(test)] mod x;` files are not part of the built crate.
+  const testOnly = rustTestOnlyPaths(analyzable);
+  const candidates = testOnly.size ? analyzable.filter((f) => !testOnly.has(f.path)) : analyzable;
   const warnings: string[] = [];
   if (candidates.length === 0) warnings.push("No supported source files found (ts, js, py, go, java, rb, cs, php, vue, svelte).");
   if (candidates.length > maxFiles) {
