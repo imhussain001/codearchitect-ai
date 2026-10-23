@@ -26,12 +26,20 @@ const state = {
   written: new Map<string, string>(),
   panel: null as null | {
     html: string;
+    title: string;
     posted: Array<{ type: string; path?: string }>;
     options: unknown;
     onMessage: ((m: unknown) => unknown) | null;
   },
   editorChanged: null as null | (() => void),
   config: {} as Record<string, unknown>,
+  folders: [] as Array<{ name: string; uri: { fsPath: string; scheme: string; toString(): string } }>,
+  allFiles: {} as Record<string, string>,
+  findCalls: [] as string[],
+  saved: null as null | ((d: unknown) => void),
+  foldersChanged: null as null | (() => void),
+  fileCreated: null as null | ((u: unknown) => void),
+  fileDeleted: null as null | ((u: unknown) => void),
   configChanged: null as null | ((e: { affectsConfiguration: (s: string) => boolean }) => void),
   opened: [] as string[],
 };
@@ -39,6 +47,9 @@ const state = {
 vi.mock("vscode", () => {
   class Uri {
     constructor(public fsPath: string, public scheme = "file") {}
+    toString() {
+      return this.fsPath;
+    }
     static file = (p: string) => new Uri(p);
     static joinPath = (base: Uri, ...parts: string[]) => new Uri([base.fsPath, ...parts].join("/"));
   }
@@ -106,10 +117,16 @@ vi.mock("vscode", () => {
         state.editorChanged = cb;
         return disposable;
       },
-      createWebviewPanel: (_id: string, _title: string, _column: unknown, options: unknown) => {
-        const record = { html: "", posted: [] as Array<{ type: string; path?: string }>, options, onMessage: null as null | ((m: unknown) => unknown) };
+      createWebviewPanel: (_id: string, title: string, _column: unknown, options: unknown) => {
+        const record = { html: "", title, posted: [] as Array<{ type: string; path?: string }>, options, onMessage: null as null | ((m: unknown) => unknown) };
         state.panel = record;
         return {
+          set title(v: string) {
+            record.title = v;
+          },
+          get title() {
+            return record.title;
+          },
           webview: {
             set html(v: string) {
               record.html = v;
@@ -137,20 +154,41 @@ vi.mock("vscode", () => {
       showTextDocument: async (uri: { fsPath: string }) => void state.opened.push(uri.fsPath),
     },
     workspace: {
-      workspaceFolders: [{ name: "demo", uri: new Uri("/ws") }],
-      asRelativePath: (uri: { fsPath: string }) => uri.fsPath.replace(/^\/ws\//, ""),
+      get workspaceFolders() {
+        return state.folders;
+      },
+      asRelativePath: (uri: { fsPath: string }) => {
+        const folder = state.folders.find((f) => uri.fsPath.startsWith(`${f.uri.fsPath}/`));
+        return folder ? uri.fsPath.slice(folder.uri.fsPath.length + 1) : uri.fsPath;
+      },
+      getWorkspaceFolder: (uri: { fsPath: string }) => state.folders.find((f) => uri.fsPath.startsWith(`${f.uri.fsPath}/`)),
       getConfiguration: () => ({ get: (k: string, d: unknown) => (k in state.config ? state.config[k] : d) }),
-      findFiles: async () => Object.keys(files).map((p) => new Uri(`/ws/${p}`)),
+      findFiles: async (pattern: { base: { uri: { fsPath: string } } }) => {
+        const root = pattern.base.uri.fsPath;
+        state.findCalls.push(root);
+        return Object.keys(state.allFiles).filter((p) => p.startsWith(`${root}/`)).map((p) => new Uri(p));
+      },
       fs: {
-        readFile: async (uri: { fsPath: string }) => new TextEncoder().encode(files[uri.fsPath.replace(/^\/ws\//, "")] ?? ""),
+        readFile: async (uri: { fsPath: string }) => new TextEncoder().encode(state.allFiles[uri.fsPath] ?? ""),
         writeFile: async (uri: { fsPath: string }, bytes: Uint8Array) => void state.written.set(uri.fsPath, new TextDecoder().decode(bytes)),
       },
-      onDidSaveTextDocument: () => disposable,
+      onDidSaveTextDocument: (cb: (d: unknown) => void) => {
+        state.saved = cb;
+        return disposable;
+      },
+      onDidChangeWorkspaceFolders: (cb: () => void) => {
+        state.foldersChanged = cb;
+        return disposable;
+      },
       onDidChangeConfiguration: (cb: (e: { affectsConfiguration: (s: string) => boolean }) => void) => {
         state.configChanged = cb;
         return disposable;
       },
-      createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidDelete: () => disposable, dispose() {} }),
+      createFileSystemWatcher: () => ({
+        onDidCreate: (cb: (u: unknown) => void) => ((state.fileCreated = cb), disposable),
+        onDidDelete: (cb: (u: unknown) => void) => ((state.fileDeleted = cb), disposable),
+        dispose() {},
+      }),
     },
     commands: {
       registerCommand: (id: string, fn: Handler) => {
@@ -169,17 +207,27 @@ vi.mock("vscode", () => {
   };
 });
 
-const editorFor = (rel: string) => ({ document: { uri: { fsPath: `/ws/${rel}`, scheme: "file" }, lineCount: 10, getText: () => "", getWordRangeAtPosition: () => undefined, languageId: "typescript" }, selection: { active: {} } });
+const editorFor = (rel: string, root = "/ws") => ({ document: { uri: { fsPath: `${root}/${rel}`, scheme: "file", toString: () => `${root}/${rel}` }, lineCount: 10, getText: () => "", getWordRangeAtPosition: () => undefined, languageId: "typescript" }, selection: { active: {} } });
+const folder = (name: string, root: string) => ({ name, uri: { fsPath: root, scheme: "file", toString: () => root } });
+const underRoot = (root: string, map: Record<string, string>) => Object.fromEntries(Object.entries(map).map(([p, c]) => [`${root}/${p}`, c]));
 const settle = () => new Promise((r) => setTimeout(r, 50));
 
-async function start() {
+let previousSubscriptions: Array<{ dispose?: () => void }> = [];
+
+async function start(setup: { folders?: ReturnType<typeof folder>[]; allFiles?: Record<string, string> } = {}) {
   state.commands.clear();
   state.messages = [];
   state.panel = null;
   state.config = {};
+  state.folders = setup.folders ?? [folder("demo", "/ws")];
+  state.allFiles = setup.allFiles ?? underRoot("/ws", files);
+  state.findCalls = [];
   state.activeEditor = editorFor("src/auth.ts");
   const { activate } = await import("../extensions/vscode/src/extension");
-  activate({ subscriptions: [] } as never);
+  for (const d of previousSubscriptions) d.dispose?.();
+  const context = { subscriptions: [] as Array<{ dispose?: () => void }> };
+  previousSubscriptions = context.subscriptions;
+  activate(context as never);
   await settle();
 }
 
@@ -348,5 +396,141 @@ describe("CodeLens languages", () => {
     await start();
     const languages = (state.lensSelector as Array<{ language: string }>).map((s) => s.language);
     expect(languages).toEqual(expect.arrayContaining(["typescript", "javascript", "go", "java", "rust", "python"]));
+  });
+});
+
+describe("multi-root workspaces", () => {
+  // Two folders that both have src/auth.ts: in /ws it has 2 dependents, in /ws2 it has 3.
+  const ws2Files = {
+    "src/auth.ts": `export function verifyToken(t: string) { return !!t; }\n`,
+    "src/api.ts": `import { verifyToken } from "./auth";\nexport const api = () => verifyToken("a");\n`,
+    "src/cli.ts": `import { verifyToken } from "./auth";\nexport const cli = () => verifyToken("b");\n`,
+    "src/admin.ts": `import { verifyToken } from "./auth";\nexport const admin = () => verifyToken("c");\n`,
+  };
+  const twoFolders = () => ({ folders: [folder("demo", "/ws"), folder("demo2", "/ws2")], allFiles: { ...underRoot("/ws", files), ...underRoot("/ws2", ws2Files) } });
+  const run = (id: string, ...args: unknown[]) => (state.commands.get(id) as (...a: unknown[]) => unknown)(...args);
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("answers from the folder the file belongs to, even when two folders share a relative path", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+
+    state.activeEditor = editorFor("src/auth.ts", "/ws2");
+    state.editorChanged!();
+    expect(state.status.text).toContain("3 files affected");
+    expect(JSON.stringify(state.status.tooltip)).toContain("demo2");
+    expect(JSON.stringify(state.status.tooltip)).toContain("links between folders are not followed");
+
+    state.activeEditor = editorFor("src/auth.ts", "/ws");
+    state.editorChanged!();
+    expect(state.status.text).toContain("2 files affected");
+  });
+
+  it("opens the chosen file in its own folder", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    state.activeEditor = editorFor("src/auth.ts", "/ws2");
+    state.pickChoice = { label: "Api", ref: { path: "src/api.ts" } };
+    state.opened = [];
+    await run("codearchitect.showBlastRadius");
+    expect(state.pickedItems.filter((i) => i.ref).map((i) => i.ref!.path).sort()).toEqual(["src/admin.ts", "src/api.ts", "src/cli.ts"]);
+    expect(state.opened).toEqual(["/ws2/src/api.ts"]);
+  });
+
+  it("gives CodeLens from the document's own folder and tells the command which folder", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    const doc = (editorFor("src/auth.ts", "/ws2") as { document: unknown }).document;
+    const lenses = state.lens!.provideCodeLenses(doc);
+    expect(lenses[0]!.command.title).toBe("used by 3 files");
+    expect(lenses[0]!.command.arguments).toEqual(["src/auth.ts", "verifyToken", "/ws2"]);
+  });
+
+  it("uses the folder it is told about, not the active editor's", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    state.activeEditor = editorFor("src/auth.ts", "/ws"); // active file is in the other folder
+    state.pickChoice = { label: "Cli", ref: { path: "src/cli.ts" } };
+    state.opened = [];
+    await run("codearchitect.showUsers", "src/auth.ts", "verifyToken", "/ws2");
+    expect(state.pickedItems.filter((i) => i.ref).map((i) => i.ref!.path).sort()).toEqual(["src/admin.ts", "src/api.ts", "src/cli.ts"]);
+    expect(state.opened).toEqual(["/ws2/src/cli.ts"]);
+  });
+
+  it("switches the map to the folder of the file you open", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    await run("codearchitect.showGraph");
+    expect(state.panel!.html).toContain('data-id="src-login"'); // folder /ws
+    expect(state.panel!.html).not.toContain('data-id="src-admin"');
+    expect(state.panel!.title).toBe("CodeArchitect map: demo");
+
+    state.activeEditor = editorFor("src/auth.ts", "/ws2");
+    state.editorChanged!();
+    expect(state.panel!.html).toContain('data-id="src-admin"'); // folder /ws2
+    expect(state.panel!.html).not.toContain('data-id="src-login"');
+    expect(state.panel!.title).toBe("CodeArchitect map: demo2");
+
+    await state.panel!.onMessage!({ type: "ready" });
+    expect(state.panel!.posted.at(-1)).toEqual({ type: "focus", path: "src/auth.ts" });
+    state.opened = [];
+    await state.panel!.onMessage!({ type: "open", path: "src/admin.ts" });
+    expect(state.opened).toEqual(["/ws2/src/admin.ts"]);
+    await state.panel!.onMessage!({ type: "open", path: "src/session.ts" }); // exists only in the other folder
+    expect(state.opened).toEqual(["/ws2/src/admin.ts"]);
+  });
+
+  it("re-maps only the folder where a file was saved", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    state.findCalls = [];
+    state.saved!({ uri: (editorFor("src/api.ts", "/ws2") as { document: { uri: unknown } }).document.uri, languageId: "typescript" });
+    await wait(1100);
+    expect(state.findCalls).toEqual(["/ws2"]);
+  });
+
+  it("forgets a folder that is closed", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    state.activeEditor = editorFor("src/auth.ts", "/ws2");
+    state.editorChanged!();
+    expect(state.status.shown).toBe(true);
+
+    state.folders = [folder("demo", "/ws")];
+    state.foldersChanged!();
+    await wait(1100);
+    state.editorChanged!();
+    expect(state.status.shown).toBe(false);
+  });
+
+  it("exports the active file's folder, and asks which folder when none is open", async () => {
+    await start(twoFolders());
+    await run("codearchitect.refresh");
+    await settle();
+    state.activeEditor = editorFor("src/auth.ts", "/ws2");
+    await run("codearchitect.exportShare");
+    expect(state.written.has("/ws2/demo2-architecture.html")).toBe(true);
+    expect(state.written.get("/ws2/demo2-architecture.html")).toContain("data-id=\"src-admin\"");
+
+    state.written.clear();
+    state.activeEditor = undefined;
+    state.pickChoice = { label: "demo", description: "/ws", key: "/ws" };
+    await run("codearchitect.exportShare");
+    expect([...state.written.keys()]).toEqual(["/ws/demo-architecture.html"]);
+  });
+
+  it("keeps single-folder behaviour: no folder name in the tooltip, no multi-root note", async () => {
+    await start();
+    await run("codearchitect.refresh");
+    await settle();
+    expect(JSON.stringify(state.status.tooltip)).not.toContain("links between folders");
+    expect(JSON.stringify(state.status.tooltip)).not.toContain("demo");
   });
 });

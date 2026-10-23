@@ -1,6 +1,6 @@
 {
   "format": "codearchitect/v1",
-  "exportedAt": "2026-10-23T10:26:06.894Z",
+  "exportedAt": "2026-10-23T10:32:04.899Z",
   "graph": {
     "id": "codearchitect-self",
     "name": "CodeArchitect AI (this repo)",
@@ -3745,6 +3745,18 @@
         "addedNodeIds": [],
         "modifiedNodeIds": [
           "heuristic-graph"
+        ]
+      },
+      {
+        "hash": "102eef0",
+        "author": "imhussain001",
+        "date": "2026-10-23",
+        "message": "feat(drift): bisect to the exact commit that caused a regression",
+        "phase": "Phase 60 · bisect to the exact commit that caused a regression",
+        "narrative": "feat(drift): bisect to the exact commit that caused a regression. Touches 1 mapped component(s).",
+        "addedNodeIds": [],
+        "modifiedNodeIds": [
+          "cli"
         ]
       }
     ],
