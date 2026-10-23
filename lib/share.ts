@@ -30,6 +30,8 @@ type ShareData = {
   name: string;
   description: string;
   grade: string;
+  /** True when the map has data files (script projects), which turns on the data-flow trace. */
+  hasData: boolean;
   score: number;
   kinds: Record<string, { label: string; color: string }>;
   nodes: Array<{
@@ -47,6 +49,16 @@ type ShareData = {
   guide: { headline: string; path: Array<{ id: string; role: string; why: string }>; omitted: number };
 };
 
+const CODE_LANGUAGES = /^(tsx?|jsx?|mjs|cjs|py|go|java|rs|m)$/i;
+
+/**
+ * Script projects have data *files* as nodes (a CSV, a figure), which turns on the data-flow trace.
+ * A web project's "data" layer (a database, a cache) is code, so it does not.
+ */
+function hasDataFiles(graph: ArchitectureGraph): boolean {
+  return graph.nodes.some((n) => n.data.kind === "data" && n.id.startsWith("data-") && !CODE_LANGUAGES.test(n.data.language));
+}
+
 export function buildShareData(graph: ArchitectureGraph): ShareData {
   const real = { ...graph, nodes: graph.nodes.filter((n) => !n.data.isDraft), edges: graph.edges.filter((e) => !e.isDraft) };
   const health = analyzeHealth(real);
@@ -59,6 +71,7 @@ export function buildShareData(graph: ArchitectureGraph): ShareData {
     name: graph.name,
     description: graph.description ?? "",
     grade: health.grade,
+    hasData: hasDataFiles(real),
     score: health.overall,
     kinds,
     nodes: real.nodes.map((n) => ({
@@ -125,6 +138,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px}
 #diagram{position:absolute;inset:0;cursor:grab;touch-action:none}#diagram.drag{cursor:grabbing}
 #diagram svg{display:block;width:100%;height:100%}
 g.node{cursor:pointer;transition:opacity .15s}g.node.sel{filter:drop-shadow(0 0 8px #a78bfa)}
+g.node.trace{filter:drop-shadow(0 0 7px #22d3ee)}ol.trace-steps{margin:6px 0 0;padding:0;list-style:none}ol.trace-steps li{margin:0 0 6px}.tstep{display:flex;gap:8px;align-items:baseline;width:100%;text-align:left;padding:4px 6px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}.tstep:hover{border-color:var(--accent)}.tstep i{font-style:normal;color:var(--muted);font-size:11px}
 g.node.imp-direct{filter:drop-shadow(0 0 7px #f59e0b)}g.node.imp-indirect{filter:drop-shadow(0 0 5px #fcd34d)}g.node.dim{opacity:.16}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.action{padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}.action:hover{border-color:var(--accent)}.action.on{border-color:#f59e0b;color:#fbbf24}
 #zoom{position:absolute;right:12px;bottom:12px;display:flex;gap:6px}
@@ -146,16 +160,70 @@ pre{margin:0;padding:10px;max-height:340px;overflow:auto;border-radius:8px;borde
 `;
 
 /** Client script. No backticks or template placeholders: it is embedded in a template literal above. */
-const SCRIPT = `
+/**
+ * Data-flow tracing for the page: the same walk as \`traceProvenance\` (lib/engines/provenance.ts),
+ * as plain JavaScript with no DOM so a test can run it against the engine and compare.
+ * \`writes\` edges point from a producer to what it produces; every other edge points from a user to what it uses.
+ */
+export const TRACE_JS = `
+function buildFlow(D) {
+  var out = {}, inc = {};
+  D.edges.forEach(function (e) {
+    (out[e.s] = out[e.s] || []).push(e);
+    (inc[e.t] = inc[e.t] || []).push(e);
+  });
+  return { out: out, inc: inc };
+}
+function traceFrom(D, flow, id, mode) {
+  var byId = {};
+  D.nodes.forEach(function (n) { byId[n.id] = n; });
+  var isData = function (x) { return byId[x].kind === 'data'; };
+  var depth = {}; depth[id] = 0;
+  var queue = [id];
+  function visit(from, to) {
+    if (byId[to] && depth[to] === undefined) { depth[to] = depth[from] + 1; queue.push(to); }
+  }
+  for (var head = 0; head < queue.length; head++) {
+    var x = queue[head];
+    var inn = flow.inc[x] || [], outt = flow.out[x] || [];
+    if (mode === 'upstream') {
+      if (isData(x)) inn.forEach(function (e) { if (e.rel === 'writes') visit(x, e.s); });
+      else outt.forEach(function (e) { if (e.rel !== 'writes') visit(x, e.t); });
+    } else {
+      inn.forEach(function (e) { if (e.rel !== 'writes') visit(x, e.s); });
+      if (!isData(x)) outt.forEach(function (e) { if (e.rel === 'writes') visit(x, e.t); });
+    }
+  }
+  var hasWriter = function (x) { return (flow.inc[x] || []).some(function (e) { return e.rel === 'writes'; }); };
+  var roleOf = function (x) {
+    if (x === id) return 'target';
+    if (!isData(x)) return 'code';
+    return hasWriter(x) ? 'produced' : 'input';
+  };
+  var rank = { input: 0, code: 1, produced: 2, target: 3 };
+  var steps = Object.keys(depth).map(function (x) { return { id: x, depth: depth[x], role: roleOf(x) }; });
+  steps.sort(function (a, b) {
+    return (mode === 'upstream' ? b.depth - a.depth : a.depth - b.depth) || rank[a.role] - rank[b.role] || byId[a.id].label.localeCompare(byId[b.id].label);
+  });
+  return steps;
+}
+`;
+
+const SCRIPT = `${TRACE_JS}
 (function () {
   var D = JSON.parse(document.getElementById('data').textContent);
   var byId = {}; D.nodes.forEach(function (n) { byId[n.id] = n; });
-  var uses = {}, usedBy = {};
+  // uses/usedBy: code coupling (calls, imports, reads). Data flow is kept apart: reads/writes per file.
+  var uses = {}, usedBy = {}, callsOf = {}, calledBy = {}, readsOf = {}, readBy = {}, writesOf = {}, writtenBy = {};
+  function add(map, key, value) { (map[key] = map[key] || []).push(value); }
   D.edges.forEach(function (e) {
     if (!byId[e.s] || !byId[e.t]) return;
-    (uses[e.s] = uses[e.s] || []).push(e.t);
-    (usedBy[e.t] = usedBy[e.t] || []).push(e.s);
+    if (e.rel === 'writes') { add(writesOf, e.s, e.t); add(writtenBy, e.t, e.s); return; } // a producer does not depend on its product
+    add(uses, e.s, e.t); add(usedBy, e.t, e.s);
+    if (e.rel === 'reads') { add(readsOf, e.s, e.t); add(readBy, e.t, e.s); } else { add(callsOf, e.s, e.t); add(calledBy, e.t, e.s); }
   });
+  var flow = buildFlow(D);
+  var trace = null;
   var panel = document.getElementById('panel');
   var svg = document.querySelector('#diagram svg');
   var stage = document.getElementById('diagram');
@@ -233,6 +301,7 @@ const SCRIPT = `
   });
   function select(id, recenter) {
     selected = id;
+    trace = null;
     svg.querySelectorAll('g.node').forEach(function (g) { g.classList.toggle('sel', g.getAttribute('data-id') === id); });
     if (recenter) center(id);
     applyImpact();
@@ -249,8 +318,34 @@ const SCRIPT = `
     }
     return depth;
   }
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  function clearBadges() { svg.querySelectorAll('.tbadge').forEach(function (b) { b.remove(); }); }
   function applyImpact() {
-    svg.querySelectorAll('g.node').forEach(function (g) { g.classList.remove('imp-direct', 'imp-indirect', 'dim'); });
+    svg.querySelectorAll('g.node').forEach(function (g) { g.classList.remove('imp-direct', 'imp-indirect', 'dim', 'trace'); });
+    clearBadges();
+    // A data-flow trace takes precedence over the blast-radius glow.
+    if (trace) {
+      var order = {};
+      trace.steps.forEach(function (s, i) { order[s.id] = i + 1; });
+      svg.querySelectorAll('g.node').forEach(function (g) {
+        var id = g.getAttribute('data-id');
+        if (order[id] === undefined) return void g.classList.add('dim');
+        g.classList.add('trace');
+        var box = g.querySelector('rect');
+        if (!box) return;
+        var cx = Number(box.getAttribute('x')), cy = Number(box.getAttribute('y'));
+        var badge = document.createElementNS(SVG_NS, 'g');
+        badge.setAttribute('class', 'tbadge');
+        var disc = document.createElementNS(SVG_NS, 'circle');
+        disc.setAttribute('cx', cx); disc.setAttribute('cy', cy); disc.setAttribute('r', 12); disc.setAttribute('fill', '#06b6d4');
+        var num = document.createElementNS(SVG_NS, 'text');
+        num.setAttribute('x', cx); num.setAttribute('y', cy + 4); num.setAttribute('text-anchor', 'middle');
+        num.setAttribute('font-size', '12'); num.setAttribute('font-weight', '700'); num.setAttribute('fill', '#09090b');
+        num.textContent = String(order[id]);
+        badge.appendChild(disc); badge.appendChild(num); g.appendChild(badge);
+      });
+      return;
+    }
     if (!impactOn || !selected) return;
     var depth = impactOf(selected);
     svg.querySelectorAll('g.node').forEach(function (g) {
@@ -264,6 +359,7 @@ const SCRIPT = `
   /* ---- panels ---- */
   function showGuide() {
     selected = null;
+    trace = null;
     svg.querySelectorAll('g.node.sel').forEach(function (g) { g.classList.remove('sel'); });
     applyImpact();
     panel.textContent = '';
@@ -304,14 +400,59 @@ const SCRIPT = `
     if (n.description) panel.appendChild(el('p', { text: n.description }));
     panel.appendChild(el('h3', { text: 'Change risk ' + n.score + ' / 100' }));
     panel.appendChild(el('p', { class: n.score >= 35 ? 'warn' : 'muted', text: n.reasons.length ? n.reasons.join(' - ') : 'Few connections, low risk.' }));
-    panel.appendChild(el('h3', { text: 'Used by' })); panel.appendChild(chipList(usedBy[n.id] || []));
-    panel.appendChild(el('h3', { text: 'Uses' })); panel.appendChild(chipList(uses[n.id] || []));
+    if (D.hasData) panel.appendChild(traceSection(n));
+    var groups = n.kind === 'data'
+      ? [['Written by', writtenBy], ['Read by', readBy]]
+      : D.hasData ? [['Used by', calledBy], ['Calls', callsOf], ['Reads', readsOf], ['Writes', writesOf]] : [['Used by', usedBy], ['Uses', uses]];
+    groups.forEach(function (g) { panel.appendChild(el('h3', { text: g[0] })); panel.appendChild(chipList(g[1][n.id] || [])); });
     if (n.exports.length) {
       panel.appendChild(el('h3', { text: 'Exports' }));
       var ex = el('div'); n.exports.forEach(function (x) { ex.appendChild(el('span', { class: 'chip', text: x })); }); panel.appendChild(ex);
     }
-    panel.appendChild(el('h3', { text: 'Source' }));
-    panel.appendChild(el('pre', { text: n.code }));
+    if (n.kind !== 'data' || n.code.trim()) {
+      panel.appendChild(el('h3', { text: 'Source' }));
+      panel.appendChild(el('pre', { text: n.code }));
+    }
+  }
+
+  var ROLE_TEXT = { input: 'raw input', produced: 'produced file', code: 'code', target: 'selected' };
+  function names(steps) { return steps.map(function (s) { return byId[s.id].label; }).join(', '); }
+  /** "Where it comes from" / "What it affects": numbered on the map, listed here. */
+  function traceSection(n) {
+    var wrap = el('div');
+    wrap.appendChild(el('h3', { text: 'Data flow' }));
+    var row = el('div', { class: 'actions' });
+    [['upstream', 'Where it comes from'], ['downstream', 'What it affects']].forEach(function (m) {
+      var on = !!trace && trace.id === n.id && trace.mode === m[0];
+      var b = el('button', { class: 'action' + (on ? ' on' : ''), type: 'button', text: m[1] });
+      b.addEventListener('click', function () {
+        trace = on ? null : { id: n.id, mode: m[0], steps: traceFrom(D, flow, n.id, m[0]) };
+        applyImpact();
+        showNode(n);
+      });
+      row.appendChild(b);
+    });
+    wrap.appendChild(row);
+    if (!trace || trace.id !== n.id) return wrap;
+
+    var others = trace.steps.filter(function (s) { return s.id !== n.id; });
+    var summary;
+    if (trace.mode === 'upstream') {
+      var raw = others.filter(function (s) { return s.role === 'input'; });
+      summary = others.length ? n.label + ' comes from ' + others.length + ' other component' + (others.length === 1 ? '' : 's') + (raw.length ? ', starting from ' + raw.length + ' raw input file' + (raw.length === 1 ? '' : 's') + ': ' + names(raw) + '.' : ', with no raw input file in the map.') : 'Nothing in the map leads to ' + n.label + '.';
+    } else {
+      var results = others.filter(function (s) { return byId[s.id].kind === 'data'; });
+      summary = results.length ? results.length + ' result file' + (results.length === 1 ? '' : 's') + ' would be out of date if ' + n.label + ' changed: ' + names(results) + '.' : 'Nothing is produced downstream of ' + n.label + '.';
+    }
+    wrap.appendChild(el('p', { text: summary }));
+    var list = el('ol', { class: 'trace-steps' });
+    trace.steps.forEach(function (s, i) {
+      var b = el('button', { class: 'tstep', type: 'button' }, [el('span', { text: (i + 1) + '. ' + byId[s.id].label }), el('i', { text: ROLE_TEXT[s.role] })]);
+      b.addEventListener('click', function () { center(s.id); });
+      list.appendChild(el('li', {}, [b]));
+    });
+    wrap.appendChild(list);
+    return wrap;
   }
 
   /* ---- search ---- */

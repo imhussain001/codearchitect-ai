@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildShareData, renderShareHtml } from "@/lib/share";
+import { buildShareData, renderShareHtml, TRACE_JS } from "@/lib/share";
+import { traceProvenance } from "@/lib/engines/provenance";
 import { authMicroservice, powerSystemsMatlab } from "@/lib/mockData";
 import type { ArchitectureGraph } from "@/lib/types";
 
@@ -76,5 +77,46 @@ describe("client script", () => {
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
     expect(scripts).toHaveLength(1);
     expect(() => new Function(scripts[0]!)).not.toThrow();
+  });
+});
+
+describe("data-flow trace in the page", () => {
+  const data = buildShareData(powerSystemsMatlab);
+  // The page's own trace code, evaluated without a DOM.
+  const { buildFlow, traceFrom } = new Function(`${TRACE_JS}; return { buildFlow, traceFrom };`)() as {
+    buildFlow: (d: unknown) => unknown;
+    traceFrom: (d: unknown, flow: unknown, id: string, mode: string) => Array<{ id: string; depth: number; role: string }>;
+  };
+  const flow = buildFlow(data);
+
+  it("flags script projects as having data flow, and web projects as not", () => {
+    expect(data.hasData).toBe(true);
+    expect(buildShareData(authMicroservice).hasData).toBe(false);
+  });
+
+  it("gives exactly the same steps, order and roles as the engine, for every component and both directions", () => {
+    for (const node of powerSystemsMatlab.nodes) {
+      for (const mode of ["upstream", "downstream"] as const) {
+        const engine = traceProvenance(powerSystemsMatlab, { nodeId: node.id, mode })!;
+        const page = traceFrom(data, flow, node.id, mode);
+        expect(page.map((s) => [s.id, s.role]), `${mode} ${node.id}`).toEqual(engine.steps.map((s) => [s.nodeId, s.role]));
+      }
+    }
+  });
+
+  it("is what the sample says: a figure traces back through the intermediate file to the raw inputs", () => {
+    const fig = powerSystemsMatlab.nodes.find((n) => n.data.filePath === "nrmse_bar.png")!;
+    const steps = traceFrom(data, flow, fig.id, "upstream");
+    expect(steps[0]!.role).toBe("input");
+    expect(steps.at(-1)!.id).toBe(fig.id);
+    expect(steps.some((s) => s.role === "produced")).toBe(true);
+  });
+
+  it("ships the trace controls and numbered badges in the page", () => {
+    const html = renderShareHtml(powerSystemsMatlab);
+    expect(html).toContain("Where it comes from");
+    expect(html).toContain("What it affects");
+    expect(html).toContain("tbadge");
+    expect(html).toContain("Written by");
   });
 });

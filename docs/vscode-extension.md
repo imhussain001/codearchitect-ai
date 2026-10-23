@@ -8,7 +8,7 @@ The extension puts the blast radius of the file you are editing into VS Code, so
 |---|---|
 | **Status bar** (left) | `N files affected`: files that use the active file directly or indirectly. Hover for the layer, direct and indirect counts, change-risk (0 to 100) and what drives it. A risky file turns the item amber. Click it for the list. |
 | **CodeLens** above each export | `used by N files`, `may be used by N files` (usage could not be narrowed) or `no other file uses this`. Click it to open the list of files. TypeScript, JavaScript, Go, Java and Rust. |
-| **Architecture map** (graph) | `CodeArchitect: Show architecture map` opens the interactive graph in a tab beside your code, like the web app's canvas: pan and zoom, search, a reading order, and a details panel per file. It follows the file you have open: that file is selected, files that depend on it directly glow amber, indirect ones glow lighter, and unrelated files dim. **Open in editor** in the details panel opens the file; the *Hide/Highlight what depends on this* button toggles the glow. |
+| **Architecture map** (graph) | `CodeArchitect: Show architecture map` opens the interactive graph in a tab beside your code, like the web app's canvas: pan and zoom, search, a reading order, and a details panel per file. It follows the file you have open: that file is selected, files that depend on it directly glow amber, indirect ones glow lighter, and unrelated files dim. **Open in editor** in the details panel opens the file; the *Hide/Highlight what depends on this* button toggles the glow. **For Python and MATLAB projects the map is a data-flow graph**: scripts, the functions they call, and every CSV, MAT, JSON or image file they read or write, laid out entry scripts → analysis → plots → data. Click a data file and use **Where it comes from** (numbered path back to the raw inputs) or **What it affects** (the results that go stale if it changes); script details list what each one *Reads* and *Writes*. |
 | **Command Palette** | `CodeArchitect: Show architecture map`, `CodeArchitect: Show blast radius of this file`, `CodeArchitect: Who uses this symbol?`, `CodeArchitect: Export shareable architecture page`, `CodeArchitect: Re-map the workspace`. |
 
 **Who uses this symbol?** is the symbol-level version: pick a symbol (or place the cursor on one) and the list shows the files that use it, the files affected through them, and a third group, *Import the file but do not use it*, which a rename does not touch.
@@ -89,7 +89,7 @@ code --uninstall-extension imhussain001.codearchitect-vscode
 ## Limits
 
 - The analysis is lexical (no type checker), so it shows where to look rather than proving what breaks.
-- Python and MATLAB files appear in the map and the status bar, but have no CodeLens, and Python imports are not tracked by name. For their data flow (which scripts produce which files) use the web app: `npm run view -- <folder>` ([Research code](research-scripts.md)).
+- Python and MATLAB files have no CodeLens, and Python imports are not tracked by name; their value is the data-flow map above. Names built at run time (`f"{name}.csv"`) cannot be resolved ([Research code](research-scripts.md)).
 - The extension is verified against a fake VS Code API in the test suite; try it on a real project and report anything odd.
 
 ## For contributors
