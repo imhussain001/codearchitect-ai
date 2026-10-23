@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- New languages: **C#**, **Kotlin** and **Ruby** are mapped (C# by namespaces and `using`, Kotlin by packages, imports and top-level declarations including Multiplatform `expect`/`actual`, Ruby by `require`, `autoload` and constant lookup, so Rails code is linked too). CodeLens "used by N files" works for them.
+- The map can hold many more files: up to 400 by default (was 60), adjustable up to 2,000.
+- Apache-2.0 licensed, with author attribution in `NOTICE` and third-party notices included.
+
 ## 0.1.0 (first release, preview)
 
 - Status bar: how many files a change to the open file affects (directly and indirectly), with change-risk and what drives it. Choose what a click does with `codearchitect.statusBarClick` (the list, or the map).

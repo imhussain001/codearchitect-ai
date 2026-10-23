@@ -49,7 +49,7 @@ code --install-extension extensions/vscode/codearchitect.vsix
 
 1. Reload the window if VS Code asks you to (`Developer: Reload Window`).
 2. In the Extensions view, search for **CodeArchitect**; it should be listed as installed.
-3. Open a folder that contains TypeScript, JavaScript, Go, Java or Rust code and open one of its files.
+3. Open a folder that contains TypeScript, JavaScript, Python, Go, Java, Kotlin, C#, Ruby or Rust code and open one of its files.
 4. After a moment the status bar shows `N files affected`. Open the Command Palette (`Ctrl+Shift+P`) and type `CodeArchitect` to see the five commands; run **CodeArchitect: Show architecture map** to see the graph.
 
 The first mapping happens at startup, and again shortly after you save, create or delete a source file. **View → Output → CodeArchitect** shows how long it took and how many files were mapped.
