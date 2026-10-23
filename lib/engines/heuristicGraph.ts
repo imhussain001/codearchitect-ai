@@ -72,7 +72,9 @@ const LISTED_EXPORT = /export\s+(?:type\s+)?\{([^}]*)\}/g;
 
 function listedExports(content: string): string[] {
   const names: string[] = [];
-  for (const m of content.matchAll(LISTED_EXPORT)) {
+  // Doc comments often show `export { a, b }` as an example; only real code counts.
+  const code = content.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+  for (const m of code.matchAll(LISTED_EXPORT)) {
     for (const part of m[1]!.split(",")) {
       const cleaned = part.trim().replace(/^type\s+/, "");
       const exported = cleaned.split(/\s+as\s+/).pop()?.trim();

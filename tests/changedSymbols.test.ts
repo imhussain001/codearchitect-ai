@@ -202,3 +202,11 @@ describe("accuracy fixes found by running the report on its own change", () => {
     expect(md).toContain("other file imports it but none of those names: B");
   });
 });
+
+describe("export lists in comments", () => {
+  it("are not exports", async () => {
+    const { extractExports } = await import("@/lib/engines/heuristicGraph");
+    const src = `/**\n * Use it like \`export { a, b as c }\`.\n */\n// export { d }\nexport function real() {}\n`;
+    expect(extractExports({ path: "x.ts", content: src })).toEqual(["real"]);
+  });
+});
