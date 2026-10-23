@@ -145,6 +145,17 @@ Tests: `tests/heuristicGraph.test.ts`
 
 `lib/engines/zip.ts` extracts archives with JSZip. It strips a single wrapping folder (as in GitHub zipballs), skips `..` paths and files over 200 KB, and caps archives at 50 MB.
 
+## Python (`lib/engines/pythonImports.ts`)
+
+Python imports are followed **by name**, so a file's links say what it uses, not just that it imports something.
+
+- **Forms:** `import a.b [as x]`, `from a.b import C [as D]`, `from . import x`, `from ..pkg import y` (relative levels), multi-line `from a import (b, c)`, backslash continuations, and `from a import *`. Comments, docstrings and strings are blanked first.
+- **Resolution:** a dotted module is matched against the end of each file's path (the project root is not known), and when several files match the one sharing the longest directory prefix with the importer wins. `from pkg import name` links to `pkg/name.py` when that module exists (with the attributes used through it, `name.attr`), otherwise to the file defining `pkg` with symbol `name`. `import a.b as x` records the attributes used as `x.attr`. The standard library and installed packages never match a project file.
+- **Used or not:** an imported name only counts when real code uses it (imports are removed before looking), except in `__init__.py`, where imports are how a package re-exports names.
+- **Deferred imports:** an import inside a function, or under `if TYPE_CHECKING:`, is marked `typeOnly`, so health does not report the cycle it exists to break. Blast radius and rules still see it.
+- **Exports:** `__all__` if the file defines it, else public top-level `def`, `class` and assignments (names not starting with `_`).
+- **Limits:** lexical. `sys.path` changes, `importlib`, `__import__`, conditional imports of the same name, attribute access through objects (`obj.method()`), and calls inside a single module are not followed. Run against `psf/requests` (20 source files): 63 links, 60 with names, its `TYPE_CHECKING` imports flagged, Health B with no false cycles.
+
 ## Rust (`lib/engines/rustImports.ts`)
 
 Files form a module tree under each crate's `src/` (`a.rs` and `a/mod.rs` are module `a`; `lib.rs`/`main.rs` are the root). A `use` path names a module or an item, so the edge goes to the file of the longest module prefix, with the item after it as the symbol.

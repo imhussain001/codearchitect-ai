@@ -23,7 +23,7 @@ The map is built locally from your workspace files and re-built shortly after yo
 
 - The analysis is lexical (no type checker): see `docs/engines.md` in the repository for what each language does and does not follow.
 - Only the first workspace folder is mapped.
-- Python and MATLAB files are mapped for the shareable page, but have no CodeLens.
+- MATLAB files have no CodeLens. Python gets CodeLens for names imported from other files.
 
 ## Build and install
 

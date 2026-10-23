@@ -100,7 +100,7 @@ code --uninstall-extension imhussain001.codearchitect-vscode
 ## Limits
 
 - The analysis is lexical (no type checker), so it shows where to look rather than proving what breaks.
-- Python and MATLAB files have no CodeLens, and Python imports are not tracked by name; their value is the data-flow map above. Names built at run time (`f"{name}.csv"`) cannot be resolved ([Research code](research-scripts.md)).
+- MATLAB files have no CodeLens (MATLAB links are by function name, not by import). Python names built at run time (`f"{name}.csv"`) cannot be resolved, and Python calls through an object (`obj.method()`) are not linked ([Research code](research-scripts.md)).
 - The extension is verified against a fake VS Code API in the test suite; try it on a real project and report anything odd.
 
 ## For contributors
