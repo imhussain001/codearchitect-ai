@@ -3,8 +3,10 @@
  *
  *   codearchitect analyze [dir]                       health + rules of the working tree
  *   codearchitect view [dir] [--port N] [--no-open]   (map a folder and open it in the app)
+  codearchitect share [dir] [--output file.html]   (one self-contained page to send to others)
   codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
  *   codearchitect view [dir] [--port N] [--no-open]   map a folder and open it in the app
+ *   codearchitect share [dir] [--output file.html]    one self-contained, explorable page of the architecture
  *
  * Files are read through git, so any two commits can be compared without checking them out.
  * Exit codes: 0 passed, 1 check failed, 2 usage or environment error.
@@ -17,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { buildHeuristicGraph, isAnalyzableSource } from "../../lib/engines/heuristicGraph";
 import { comparisonToJson, compareSnapshots, evaluateCheck, renderAnalysis, renderMarkdown, takeSnapshot, type CheckOptions } from "../../lib/report";
 import { PRELOAD_ENV } from "../../lib/preload";
+import { renderShareHtml } from "../../lib/share";
 import { parseRulesJson } from "../../lib/rulesSchema";
 import type { ArchRule, SourceFile } from "../../lib/types";
 
@@ -236,6 +239,21 @@ async function waitUntilReady(url: string, isAlive: () => boolean): Promise<bool
   return false;
 }
 
+/** Write a single HTML file that anyone can open: diagram, search, reading order and per-component details. */
+function runShare(args: Args): number {
+  const dir = resolve(args.positional[0] ?? ".");
+  if (!existsSync(dir)) throw new UsageError(`Directory not found: ${dir}`);
+  const files = sourceFilesInDir(dir);
+  if (files.length === 0) throw new UsageError(`No supported source files found in ${dir}.`);
+  const graph = buildHeuristicGraph(basename(dir), files, { maxFiles: MAX_MAPPED_FILES });
+  const rules = rulesFromFile(join(dir, CONFIG_FILE));
+  const output = resolve(flag(args, "output") ?? `${slug(basename(dir))}-architecture.html`);
+  writeFileSync(output, renderShareHtml({ ...graph, rules: rules.length ? rules : graph.rules }));
+  process.stdout.write(`Wrote ${output} (${graph.nodes.length} components)
+`);
+  return 0;
+}
+
 /** Map a folder, then start the app with that graph preloaded and open the browser. */
 async function runView(args: Args): Promise<number> {
   const dir = resolve(args.positional[0] ?? ".");
@@ -300,6 +318,7 @@ async function main(): Promise<number> {
   if (args.command === "analyze") return runAnalyze(args);
   if (args.command === "pr") return runPr(args);
   if (args.command === "view") return runView(args);
+  if (args.command === "share") return runShare(args);
   throw new UsageError(`Unknown command "${args.command}".\n\n${HELP}`);
 }
 

@@ -77,6 +77,18 @@ Maps the folder (git-tracked and untracked-but-not-ignored files when it is a gi
 | `--output <file>` | Write to a file instead of stdout |
 | `--no-fail` | Exit 0 even when an error-level rule is broken |
 
+### `share [dir] [--output file.html]`
+
+Writes a single self-contained HTML page of the folder's architecture (default name `<folder>-architecture.html`). It has no external scripts, styles or fonts and makes no network requests, so it works offline, from an email attachment, or as a CI artifact. The page has a pan/zoom diagram, search (`/`), the reading-order guide, and a details panel per component (risk, used-by, uses, exports, source). Source is embedded, so share it only where sharing the code is fine; the first 200 lines of each file are kept.
+
+In CI, upload it next to the PR comment:
+
+```yaml
+- run: npm run cli -- share . --output architecture.html
+- uses: actions/upload-artifact@v4
+  with: { name: architecture, path: architecture.html }
+```
+
 ### `view [dir] [--port N] [--no-open]`
 
 Maps a folder (the current one by default) and opens it in the app, with no zip or GitHub step. Files come from `git ls-files` in a repository (so `.gitignore` is respected) or a directory walk otherwise, and `.codearchitect.json` in that folder supplies the rules.
