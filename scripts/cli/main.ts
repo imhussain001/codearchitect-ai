@@ -2,12 +2,9 @@
  * CodeArchitect command line: architecture health, rules and pull-request blast radius.
  *
  *   codearchitect analyze [dir]                       health + rules of the working tree
- *   codearchitect view [dir] [--port N] [--no-open] [--history]   (map a folder and open it in the app)
-  codearchitect history [dir] [--max-points N] [--format markdown|json] [--output file]
-  codearchitect share [dir] [--output file.html]   (one self-contained page to send to others)
-  codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
- *   codearchitect view [dir] [--port N] [--no-open]   map a folder and open it in the app
- *   codearchitect history [dir] [--max-points N]      how health, cycles and rule violations changed over time
+ *   codearchitect pr --base <ref> [--head <ref>]      what a change does to the architecture
+ *   codearchitect view [dir] [--port N] [--no-open] [--history]   map a folder and open it in the app
+ *   codearchitect history [dir] [--max-points N] [--refine N]     how health, cycles and rule violations changed over time
  *   codearchitect share [dir] [--output file.html]    one self-contained, explorable page of the architecture
  *
  * Files are read through git, so any two commits can be compared without checking them out.
@@ -21,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { buildHeuristicGraph, isAnalyzableSource } from "../../lib/engines/heuristicGraph";
 import { analyzeChangedSymbols } from "../../lib/engines/changedSymbols";
 import { comparisonToJson, compareSnapshots, evaluateCheck, renderAnalysis, renderMarkdown, takeSnapshot, type CheckOptions } from "../../lib/report";
-import { analyzeDrift, measure, renderDriftMarkdown, sampleIndices, type DriftPoint } from "../../lib/engines/drift";
+import { analyzeDrift, measure, refineDrift, renderDriftMarkdown, sampleIndices, type DriftPoint, type IndexedPoint } from "../../lib/engines/drift";
 import { PRELOAD_ENV } from "../../lib/preload";
 import { renderShareHtml } from "../../lib/share";
 import { parseRulesJson } from "../../lib/rulesSchema";
@@ -42,7 +39,7 @@ type Args = { command: string; positional: string[]; flags: Map<string, string |
 const BOOLEAN_FLAGS = new Set(["help", "no-open", "history", "no-fail", "no-fail-on-cycles", "no-fail-on-violations", "fail-on-removed-exports"]);
 
 function parseArgs(argv: string[]): Args {
-  const [command = "help", ...rest] = argv;
+  const [command = "help", ...rest] = argv[0] === "--help" || argv[0] === "-h" ? ["help", ...argv.slice(1)] : argv;
   const flags = new Map<string, string | true>();
   const positional: string[] = [];
   for (let i = 0; i < rest.length; i++) {
@@ -259,19 +256,56 @@ function commitLog(cwd: string, ref: string): Array<Pick<DriftPoint, "hash" | "a
     });
 }
 
-/** Measure health at up to `maxPoints` evenly spaced commits. The current rules apply to every commit, so changes reflect code, not rule edits. */
-function collectDrift(cwd: string, name: string, rules: readonly ArchRule[], maxPoints: number): DriftPoint[] {
+const DEFAULT_REFINE_PROBES = 12;
+
+/**
+ * Measure health at up to `maxPoints` evenly spaced commits, then spend up to `refine` extra
+ * measurements bisecting each regression to the commit that caused it. The current rules apply to
+ * every commit, so changes reflect code, not rule edits.
+ */
+function collectDrift(cwd: string, name: string, rules: readonly ArchRule[], maxPoints: number, refine: number = DEFAULT_REFINE_PROBES): { points: DriftPoint[]; extra: number } {
   const commits = commitLog(cwd, "HEAD");
-  const picked = sampleIndices(commits.length, maxPoints).map((i) => commits[i]!);
-  const points: DriftPoint[] = [];
-  picked.forEach((commit, i) => {
-    process.stderr.write(`\rMeasuring history ${i + 1}/${picked.length}…`);
+  const cache = new Map<number, DriftPoint | null>();
+  const measureAt = (index: number): DriftPoint | null => {
+    const cached = cache.get(index);
+    if (cached !== undefined) return cached;
+    const commit = commits[index]!;
     const files = sourceFilesAtRef(cwd, commit.hash);
-    if (files.length === 0) return; // before any supported source existed
-    points.push(measure(commit, takeSnapshot(buildHeuristicGraph(name, files, { maxFiles: MAX_MAPPED_FILES }), rules)));
+    // A commit before any supported source existed has nothing to measure.
+    const point = files.length === 0 ? null : measure(commit, takeSnapshot(buildHeuristicGraph(name, files, { maxFiles: MAX_MAPPED_FILES }), rules));
+    cache.set(index, point);
+    return point;
+  };
+
+  const sampled = sampleIndices(commits.length, maxPoints);
+  const initial: IndexedPoint[] = [];
+  sampled.forEach((index, i) => {
+    process.stderr.write(`\rMeasuring history ${i + 1}/${sampled.length}…`);
+    const point = measureAt(index);
+    if (point) initial.push({ index, point });
   });
+
+  let probes = 0;
+  const refined =
+    refine > 0
+      ? refineDrift(
+          initial,
+          (index) => {
+            process.stderr.write(`\rPinpointing regressions (${++probes}/${refine})…`);
+            return measureAt(index);
+          },
+          refine,
+        )
+      : { points: initial, extra: 0 };
   process.stderr.write("\r\x1b[K");
-  return points;
+  return { points: refined.points.map((p) => p.point), extra: refined.extra };
+}
+
+function parseRefine(args: Args): number {
+  const raw = flag(args, "refine");
+  const n = raw === undefined ? DEFAULT_REFINE_PROBES : Number(raw);
+  if (!Number.isInteger(n) || n < 0) throw new UsageError("--refine must be a whole number, 0 or more (0 turns pinpointing off).");
+  return n;
 }
 
 function parseMaxPoints(args: Args): number {
@@ -285,9 +319,10 @@ function runHistory(args: Args): number {
   const cwd = resolve(args.positional[0] ?? flag(args, "dir") ?? ".");
   if (!isGitRepo(cwd)) throw new UsageError(`${cwd} is not inside a git repository.`);
   const name = basename(cwd);
-  const report = analyzeDrift(collectDrift(cwd, name, rulesFromFile(join(cwd, CONFIG_FILE)), parseMaxPoints(args)));
-  emit(args, flag(args, "format") === "json" ? `${JSON.stringify(report, null, 2)}
-` : renderDriftMarkdown(report, name));
+  const { points, extra } = collectDrift(cwd, name, rulesFromFile(join(cwd, CONFIG_FILE)), parseMaxPoints(args), parseRefine(args));
+  const report = analyzeDrift(points);
+  emit(args, flag(args, "format") === "json" ? `${JSON.stringify({ ...report, extraCommitsMeasured: extra }, null, 2)}
+` : renderDriftMarkdown(report, name, { extra }));
   return 0;
 }
 
@@ -322,7 +357,7 @@ async function runView(args: Args): Promise<number> {
   const name = basename(dir);
   const graph = buildHeuristicGraph(name, files, { maxFiles: MAX_MAPPED_FILES });
   const rules = rulesFromFile(join(dir, CONFIG_FILE));
-  const drift = args.flags.has("history") && isGitRepo(dir) ? collectDrift(dir, name, rules, parseMaxPoints(args)) : undefined;
+  const drift = args.flags.has("history") && isGitRepo(dir) ? collectDrift(dir, name, rules, parseMaxPoints(args), parseRefine(args)).points : undefined;
   const scratch = mkdtempSync(join(tmpdir(), "codearchitect-view-"));
   const file = join(scratch, "graph.json");
   writeFileSync(file, JSON.stringify({ stamp: new Date().toISOString(), graph: { ...graph, id: `local-${slug(name)}`, rules: rules.length ? rules : graph.rules, ...(drift?.length ? { drift } : {}) } }));
@@ -358,6 +393,10 @@ Usage
   codearchitect pr --base <ref> [--head <ref>] [--dir path] [--rules file]
                    [--format markdown|json] [--output file]
                    [--max-health-drop N] [--no-fail-on-cycles] [--no-fail-on-violations] [--fail-on-removed-exports]
+  codearchitect view [dir] [--port N] [--no-open] [--history]     map a folder and open it in the app
+  codearchitect history [dir] [--max-points N] [--refine N]       how health, cycles and violations changed over time
+                        [--format markdown|json] [--output file]
+  codearchitect share [dir] [--output file.html]                  one self-contained page to send to others
 
 Rules live in ${CONFIG_FILE} (an array, or {"rules": [...]}). Exit code is 1 when the check fails.
 `;
