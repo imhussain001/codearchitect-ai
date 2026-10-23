@@ -77,6 +77,16 @@ Maps the folder (git-tracked and untracked-but-not-ignored files when it is a gi
 | `--output <file>` | Write to a file instead of stdout |
 | `--no-fail` | Exit 0 even when an error-level rule is broken |
 
+### `history [dir] [--max-points N] [--format markdown|json] [--output file]`
+
+Shows how the architecture drifted. It samples up to `--max-points` (default 30) evenly spaced commits on the first-parent history, always including the first and last, reads each commit's files through git (nothing is checked out), and records health score and grade, cycles, rule violations, components and dependencies.
+
+- A commit is a **regression** if health drops by 3+ points, or it adds a cycle or a rule violation; the worst are listed first (a new cycle counts like 10 points, a new violation like 5). **Improvements** are the mirror image.
+- The trend is *improving*/*declining* when the net change across the range is 3+ points, otherwise *steady*.
+- The **current** rules (`.codearchitect.json`) are applied to every commit, so changes reflect code, not rule edits.
+- Each point uses the same heuristic mapper as `analyze`, so absolute numbers are indicative; the direction and the biggest drops are the useful part. Sampling means a short-lived regression between two samples can be missed: raise `--max-points` for finer resolution.
+- `view --history` stores the series on the graph (`drift`) and the Story tab draws it, marking regressions in red.
+
 ### `share [dir] [--output file.html]`
 
 Writes a single self-contained HTML page of the folder's architecture (default name `<folder>-architecture.html`). It has no external scripts, styles or fonts and makes no network requests, so it works offline, from an email attachment, or as a CI artifact. The page has a pan/zoom diagram, search (`/`), the reading-order guide, and a details panel per component (risk, used-by, uses, exports, source). Source is embedded, so share it only where sharing the code is fine; the first 200 lines of each file are kept.

@@ -104,6 +104,10 @@ Scenarios give the local engine exact answers for well-known changes.
 
 Nodes with an entry in `diffs` are reported as **broken**. Other reachable dependents are reported as **review only**.
 
+### Drift (optional)
+
+`drift` is a list (max 200) of points `{ hash, message, author, date, components, dependencies, score, grade, cycles, violations }`, oldest first, written by `codearchitect view --history`. The Story tab charts it.
+
 ## Limits
 
 | Field | Limit |
