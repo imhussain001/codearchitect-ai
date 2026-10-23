@@ -27,6 +27,7 @@ import type { ArchRule, SourceFile } from "../../lib/types";
 const CONFIG_FILE = ".codearchitect.json";
 const MAX_SOURCE_FILE_BYTES = 200 * 1024;
 const MAX_MAPPED_FILES = 500;
+const CLI_VERSION = "0.1.0";
 const MAX_GIT_BUFFER_BYTES = 1 << 30;
 const SKIPPED_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", ".next", "coverage", "venv", ".venv", "__pycache__", "target", "vendor"]);
 
@@ -399,9 +400,16 @@ Usage
   codearchitect share [dir] [--output file.html]                  one self-contained page to send to others
 
 Rules live in ${CONFIG_FILE} (an array, or {"rules": [...]}). Exit code is 1 when the check fails.
+Run codearchitect --version for the version and copyright.
 `;
 
 async function main(): Promise<number> {
+  if (process.argv[2] === "--version" || process.argv[2] === "-v") {
+    process.stdout.write(`codearchitect ${CLI_VERSION}
+Copyright 2026 Hussain Tak. Licensed under the Apache License 2.0.
+`);
+    return 0;
+  }
   const args = parseArgs(process.argv.slice(2));
   if (args.command === "help" || args.flags.has("help")) {
     process.stdout.write(HELP);
