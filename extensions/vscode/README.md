@@ -22,7 +22,7 @@ The map is built locally from your workspace files and re-built shortly after yo
 ## Limits
 
 - The analysis is lexical (no type checker): see `docs/engines.md` in the repository for what each language does and does not follow.
-- Only the first workspace folder is mapped.
+- Multi-root workspaces: each folder is mapped separately and what you see comes from the open file's folder; dependencies *between* folders are not followed.
 - MATLAB files have no CodeLens. Python gets CodeLens for names imported from other files.
 
 ## Build and install

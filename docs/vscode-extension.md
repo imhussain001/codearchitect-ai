@@ -54,6 +54,16 @@ code --install-extension extensions/vscode/codearchitect.vsix
 
 The first mapping happens at startup, and again shortly after you save, create or delete a source file. **View → Output → CodeArchitect** shows how long it took and how many files were mapped.
 
+## Multi-root workspaces
+
+Every folder of a multi-root workspace is mapped on its own, each with its own `codearchitect.maxFiles` budget. What you see always comes from the folder that contains the file you have open:
+
+- The status bar, the lists and the CodeLens use that folder's map, so two folders that both have a `src/auth.ts` do not get mixed up. The status-bar tooltip names the folder.
+- **Show architecture map** shows the open file's folder (the tab is titled `CodeArchitect map: <folder>`) and **switches** to the other folder's map when you open a file there.
+- **Export shareable architecture page** exports the open file's folder and writes the page into it; with no file open it asks which folder.
+- Saving, creating or deleting a file re-maps only that file's folder; adding or removing a folder re-maps the workspace.
+- **Not followed:** dependencies *between* folders. Each folder's map shows its own files only.
+
 ## Settings
 
 | Setting | Default | What it does |
@@ -95,7 +105,8 @@ code --uninstall-extension imhussain001.codearchitect-vscode
 | No status-bar item | The file is not part of the map (not a supported language, in `node_modules`, a test file, or over the `maxFiles` limit), or mapping is still running. Check **Output → CodeArchitect**, or run `CodeArchitect: Re-map the workspace`. |
 | Numbers look too low | The analysis is lexical. Dependencies the scanner cannot see (reflection, dependency injection by type, generated code) are missing. See each language's limits in [Analysis engines](engines.md). |
 | Slow on a huge workspace | Lower `codearchitect.maxFiles`, or open the sub-folder you are working in. |
-| Only part of a multi-root workspace is mapped | Only the first workspace folder is mapped. |
+| A file in a multi-root workspace shows nothing | The file's own folder is still mapping, or the file is outside every workspace folder. Run `CodeArchitect: Re-map the workspace`. |
+| A dependency between two workspace folders is missing | Folders are mapped separately; links *between* folders are not followed (a package in one folder importing a sibling folder's code, for example). |
 
 ## Limits
 
