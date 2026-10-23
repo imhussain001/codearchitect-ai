@@ -68,7 +68,8 @@ The workflow refuses to publish if the tag does not match `extensions/vscode/pac
 
 ## Other things you may want
 
-- **Open VSX** (used by VS Code forks such as VSCodium and some other editors) is a separate registry: <https://open-vsx.org>. It has its own token and `npx ovsx publish`.
+- **Open VSX** (used by VSCodium, Cursor-style forks and other editors) is a separate, free registry: <https://open-vsx.org>. One-time setup: sign in there with GitHub, accept the Publisher Agreement from your profile (Settings), create an access token, and create the namespace once with `npx ovsx create-namespace imhussain001 -p <token>`. Then add the token as the repository secret `OVSX_PAT`. From then on the publish workflow also pushes each tagged release to Open VSX; without the secret that step is skipped.
+- **Token rotation:** the Marketplace token (`VSCE_PAT`) and the Open VSX token (`OVSX_PAT`) expire. Put the expiry dates in your calendar; a 401 in the publish workflow means the token has expired or lost its scope, and the fix is to create a new one and update the secret.
 - **Unpublishing or hiding** is done at <https://marketplace.visualstudio.com/manage> (the `…` menu on the extension).
 - **Telemetry and privacy:** this extension collects nothing and sends nothing anywhere; it reads your workspace files locally. If that ever changes, the Marketplace requires you to say so in the README.
 - **Trademark:** "CodeArchitect" is used as a product name, not a registered mark. If another extension already uses the display name, the Marketplace will tell you when you publish.

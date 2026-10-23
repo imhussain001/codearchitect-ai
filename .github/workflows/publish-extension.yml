@@ -51,6 +51,17 @@ jobs:
           fi
           npx --yes @vscode/vsce publish --no-dependencies
 
+      - name: Publish to Open VSX (optional)
+        working-directory: extensions/vscode
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "OVSX_PAT is not set; skipping Open VSX"
+            exit 0
+          fi
+          npx --yes ovsx publish codearchitect.vsix -p "$OVSX_PAT"
+
       - name: Keep the package with the run
         uses: actions/upload-artifact@v4
         with:
