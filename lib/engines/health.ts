@@ -23,7 +23,7 @@ const WATCH_FROM = 35;
 const RISKY_FROM = 65;
 
 /** Files nothing imports by design: framework entry points, scripts and config. */
-const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|main\.go|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
+const ENTRY_FILE = /(^|\/)(app\/(.*\/)?(layout|page|route|loading|error|not-found|template|default)\.[jt]sx?|(main|index|middleware|instrumentation)\.[jt]sx?|main\.go|[^/]*(Application|Main|App|Controller|Configuration|Config)\.java|[^/]*\.(config|setup)\.[cm]?[jt]s)$/i;
 const ENTRY_DIR = /(^|\/)(scripts?|bin|cli|cmd)\//i;
 
 export function isLikelyEntryPoint(filePath: string): boolean {
@@ -167,7 +167,10 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
   const ids = new Set(nodes.map((n) => n.id));
   const allEdges = graph.edges.filter((e) => !e.isDraft && ids.has(e.source) && ids.has(e.target) && e.source !== e.target);
   // Type-only imports are erased at runtime: they do not make a hub, a cycle or a crossed layer.
-  const edges = allEdges.filter((e) => !e.typeOnly && !e.samePackage);
+  const edges = allEdges.filter((e) => !e.typeOnly);
+  // Files in one Go package or Java package use each other freely, so a loop between them is not a cycle worth
+  // reporting; their links still count for fan-in, hubs and risk.
+  const cycleEdges = edges.filter((e) => !e.samePackage);
   const connected = new Set(allEdges.flatMap((e) => [e.source, e.target]));
   const label = (id: string) => nodeById(graph.nodes, id)?.data.label ?? id;
 
@@ -178,11 +181,11 @@ export function analyzeHealth(graph: ArchitectureGraph): HealthReport {
     (dependencies.get(e.source) ?? dependencies.set(e.source, new Set()).get(e.source)!).add(e.target);
   }
 
-  const cycles = findCycles([...ids], edges);
+  const cycles = findCycles([...ids], cycleEdges);
   const inCycle = new Set(cycles.flat());
   const cycleOf = new Map<string, number>();
   cycles.forEach((group, i) => group.forEach((id) => cycleOf.set(id, i)));
-  const cycleEdgeIds = edges.filter((e) => cycleOf.has(e.source) && cycleOf.get(e.source) === cycleOf.get(e.target)).map((e) => e.id);
+  const cycleEdgeIds = cycleEdges.filter((e) => cycleOf.has(e.source) && cycleOf.get(e.source) === cycleOf.get(e.target)).map((e) => e.id);
 
   const issues: HealthIssue[] = [];
   const layeringNodes = new Set<string>();
