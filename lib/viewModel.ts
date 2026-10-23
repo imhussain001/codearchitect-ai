@@ -1,10 +1,13 @@
-import { MarkerType } from "@xyflow/react";
+import type { MarkerType } from "@xyflow/react";
 import type { HealthReport } from "@/lib/engines/health";
 import type { Trace } from "@/lib/engines/provenance";
 import { visibleNodeIdsAt } from "@/lib/engines/story";
 import { impactPathEdgeIds } from "@/lib/graph";
 import { EDGE_COLORS, kindLabelFor } from "@/lib/ui";
 import type { ArchitectureGraph, ImpactAnalysisResult, NodeStatus, RenderEdge, RenderNode, RuleViolation } from "@/lib/types";
+
+/** React Flow's `MarkerType.ArrowClosed`, spelled out so this pure module does not pull the canvas library into the CLI and the VS Code extension. */
+const ARROW_CLOSED = "arrowclosed" as MarkerType.ArrowClosed;
 
 export type ViewInputs = {
   graph: ArchitectureGraph;
@@ -104,7 +107,7 @@ export function buildRenderGraph({ graph, impact, story, health = null, focusNod
       hidden: visible ? !(visible.has(edge.source) && visible.has(edge.target)) : false,
       deletable: isDraft,
       data: { relation: edge.relation, isImpactPath, isDraft, isCycle, isViolation, isTrace },
-      markerEnd: { type: MarkerType.ArrowClosed, color, width: 18, height: 18 },
+      markerEnd: { type: ARROW_CLOSED, color, width: 18, height: 18 },
       style: {
         stroke: color,
         strokeWidth: isImpactPath || isCycle || isViolation || isTrace ? 2.5 : 1.5,

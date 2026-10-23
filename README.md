@@ -1,5 +1,7 @@
 # CodeArchitect AI
 
+*Created and owned by **Hussain Tak** ([@imhussain001](https://github.com/imhussain001)). Copyright © 2026 Hussain Tak. Licensed under the [Apache License 2.0](LICENSE).*
+
 **An interactive map of a codebase's architecture.** Map a repository into a live dependency graph, simulate what a change would break before you make it, replay how the architecture evolved, and draw new components to generate the code that wires them in.
 
 Built with Next.js 16 (App Router), React 19, React Flow 12 and Tailwind 4. Analysis can run on **any major AI model** — Claude, OpenAI, Gemini, or free local models through **Ollama** / LM Studio — and falls back to a **deterministic local engine**, so the app is fully usable offline and for free.
@@ -204,6 +206,16 @@ flowchart LR
 - **Status is derived, not stored.** Nodes hold facts about the code; the impact, story and draft overlays are computed every render, so modes can't leave stale state behind.
 - **Edges point from dependent to dependency**, so a blast radius is a reverse BFS from the changed node, O(V+E).
 - **AI is optional, provider-neutral and checked.** Every model's output is validated with the same Zod schemas (with one automatic repair retry for malformed JSON) and then against the graph: unknown node IDs are dropped, depths are recomputed, and "before" code always comes from the graph itself. Any model failure falls back to the local engine with a visible warning.
+
+## License and ownership
+
+**CodeArchitect AI is created, owned and maintained by Hussain Tak** ([@imhussain001](https://github.com/imhussain001)). Copyright © 2026 Hussain Tak.
+
+It is licensed under the **Apache License, Version 2.0** (full text in [LICENSE](LICENSE)). In plain words, and without replacing the license text: anyone may use, modify and redistribute the software, including commercially, **provided they keep the copyright notice and the [NOTICE](NOTICE) file (which names the author)**, mark files they changed, and do not use the author's name or marks to endorse their own product. It comes with no warranty. The license also grants a patent license from contributors and ends it for anyone who sues over the software's patents.
+
+- Contributions: unless you say otherwise, anything you submit for inclusion is licensed under the same license (section 5). Contributors are listed in [AUTHORS.md](AUTHORS.md) with their permission.
+- Third-party software keeps its own licenses: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (regenerate it with `npm run notices`). All production dependencies are permissive; `jszip` is dual-licensed and used under MIT.
+- Output you generate with the tool (reports, diagrams, shareable pages) is yours. Shareable pages and reports carry a small "made with CodeArchitect AI" credit; you may remove it from your own copies.
 
 ## Documentation
 

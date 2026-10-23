@@ -10,6 +10,10 @@ See what a change to the file you are editing can break, without leaving the edi
 
 The map is built locally from your workspace files and re-built shortly after you save, create or delete a file. Nothing is uploaded.
 
+## License and ownership
+
+Copyright © 2026 **Hussain Tak** ([@imhussain001](https://github.com/imhussain001)), who created and owns this extension. Licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
+
 ## Settings
 
 | Setting | Default | |
