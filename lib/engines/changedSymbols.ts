@@ -44,7 +44,9 @@ export function analyzeChangedSymbols(baseFiles: readonly SourceFile[], headFile
     const baseNames = before ? [...new Set(extractExports(before).map(nameOf))] : [];
     const headNames = after ? [...new Set(extractExports(after).map(nameOf))] : [];
     const added = headNames.filter((n) => !baseNames.includes(n));
-    const removed = baseNames.filter((n) => !headNames.includes(n));
+    // `export * from` re-exports names we cannot list, so a name that seems to be gone may still be exported.
+    const hasStarReexport = after ? /export\s+\*\s+(?:as\s+\w+\s+)?from\b/.test(after.content) : false;
+    const removed = hasStarReexport ? [] : baseNames.filter((n) => !headNames.includes(n));
 
     // A file that is new or gone has no line-by-line story: every export was added or removed.
     if (!before || !after) {

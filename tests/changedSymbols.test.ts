@@ -158,3 +158,47 @@ describe("pull-request report with symbol impact", () => {
     expect(renderMarkdown(plain, evaluateCheck(plain))).not.toContain("Changed exports");
   });
 });
+
+describe("accuracy fixes found by running the report on its own change", () => {
+  it("counts `export { a }` lists and `export { a } from` re-exports as exports", async () => {
+    const { extractExports } = await import("@/lib/engines/heuristicGraph");
+    expect(extractExports({ path: "x.ts", content: `const a = 1;\nconst b = 2;\nexport { a, b as bee };\nexport { c } from "./c";\nexport type { T } from "./t";\n` }).sort()).toEqual(["T", "a", "bee", "c"]);
+  });
+
+  it("does not call a name removed when it moved to a re-export", () => {
+    const before = `export function helper() {\n  return 1;\n}\n\nexport const KEEP = 1;\n`;
+    const after = `export { helper } from "./helper";\n\nexport const KEEP = 1;\n`;
+    const result = analyzeChangedSymbols([file("src/a.ts", before)], [file("src/a.ts", after)], ["src/a.ts"]);
+    expect(result.flatMap((c) => c.removed)).toEqual([]);
+  });
+
+  it("does not report removals in a file that does `export * from`", () => {
+    const result = analyzeChangedSymbols([file("src/a.ts", `export function gone() {}\nexport const KEEP = 1;\n`)], [file("src/a.ts", `export * from "./other";\nexport const KEEP = 1;\n`)], ["src/a.ts"]);
+    expect(result.flatMap((c) => c.removed)).toEqual([]);
+  });
+
+  it("attributes the doc comment above an export to that export, not the one above it", () => {
+    const before = `export function one() {\n  return 1;\n}\n\n/** Does the second thing. */\nexport function two() {\n  return 2;\n}\n`;
+    const after = before.replace("/** Does the second thing. */", "/** Does the second thing.\n * Now documented better. */");
+    const [c] = analyzeChangedSymbols([file("src/a.ts", before)], [file("src/a.ts", after)], ["src/a.ts"]);
+    expect(c!.modified).toEqual(["two"]);
+  });
+
+  it("says nothing for a file with no exports and no importers, such as a script", () => {
+    const base = takeSnapshot(buildHeuristicGraph("p", [file("scripts/run.ts", "console.log(1);\n")]));
+    const head = takeSnapshot(buildHeuristicGraph("p", [file("scripts/run.ts", "console.log(2);\n")]));
+    const changes = analyzeChangedSymbols([file("scripts/run.ts", "console.log(1);\n")], [file("scripts/run.ts", "console.log(2);\n")], ["scripts/run.ts"]);
+    expect(compareSnapshots(base, head, ["scripts/run.ts"], changes).symbolImpact).toEqual([]);
+  });
+
+  it("says plainly when no other file uses the changed names", () => {
+    const baseFiles = [file("src/a.ts", `export function used() {\n  return 1;\n}\n\nexport function lonely() {\n  return 1;\n}\n`), file("src/b.ts", `import { used } from "./a";\nexport const b = used();\n`)];
+    const headFiles = [file("src/a.ts", `export function used() {\n  return 1;\n}\n\nexport function lonely() {\n  return 2;\n}\n`), baseFiles[1]!];
+    const changes = analyzeChangedSymbols(baseFiles, headFiles, ["src/a.ts"]);
+    const comparison = compareSnapshots(takeSnapshot(buildHeuristicGraph("p", baseFiles)), takeSnapshot(buildHeuristicGraph("p", headFiles)), ["src/a.ts"], changes);
+    const md = renderMarkdown(comparison, evaluateCheck(comparison));
+    expect(md).toContain("modified `lonely`");
+    expect(md).toContain("No other file uses the changed names.");
+    expect(md).toContain("other file imports it but none of those names: B");
+  });
+});

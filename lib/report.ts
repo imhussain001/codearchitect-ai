@@ -109,6 +109,8 @@ function computeSymbolImpact(base: Snapshot | null, head: Snapshot, changedFiles
       }
     }
 
+    // A file with no exports and no importers (a script, an entry point) has nothing to narrow: say nothing.
+    if (!change.precise && affected.length === 0) continue;
     out.push({ path: change.path, label: nodeById(graph.nodes, nodeId)?.data.label ?? change.path, modified: change.modified, added: change.added, removed: change.removed, precise: change.precise, affected, spared, stillImporting });
   }
   return out;
@@ -334,7 +336,8 @@ export function renderMarkdown(c: Comparison, check: CheckResult): string {
           continue;
         }
         if (s.modified.length || s.removed.length) {
-          lines.push(`  - **${s.affected.length}** file${s.affected.length === 1 ? "" : "s"} use${s.affected.length === 1 ? "s" : ""} ${s.affected.length === 1 ? "a changed name" : "the changed names"}${s.affected.length ? `: ${listWithMore(s.affected.map((a) => escapeCell(a.label) + (a.symbols.length ? ` (${a.symbols.map((n) => `\`${n}\``).join(", ")})` : "")), 5).join(", ")}` : ""}.`);
+          if (s.affected.length === 0) lines.push("  - No other file uses the changed names.");
+          else lines.push(`  - **${s.affected.length}** file${s.affected.length === 1 ? "" : "s"} use${s.affected.length === 1 ? "s" : ""} ${s.affected.length === 1 ? "a changed name" : "the changed names"}${s.affected.length ? `: ${listWithMore(s.affected.map((a) => escapeCell(a.label) + (a.symbols.length ? ` (${a.symbols.map((n) => `\`${n}\``).join(", ")})` : "")), 5).join(", ")}` : ""}.`);
           if (s.spared.length) lines.push(`  - **${s.spared.length}** other file${s.spared.length === 1 ? "" : "s"} import${s.spared.length === 1 ? "s" : ""} it but none of those names: ${listWithMore(s.spared.map(escapeCell), 5).join(", ")}.`);
         }
         for (const m of s.stillImporting) lines.push(`  - ⚠ Removed ${m.symbols.map((n) => `\`${n}\``).join(", ")} is still imported by ${escapeCell(m.label)}, which this change does not touch.`);
