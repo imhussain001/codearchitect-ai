@@ -267,9 +267,28 @@ const SCRIPT = `${TRACE_JS}
     return [view[0] + (clientX - r.left - (r.width - view[2] / scale) / 2) * scale, view[1] + (clientY - r.top - (r.height - view[3] / scale) / 2) * scale, scale];
   }
   stage.addEventListener('wheel', function (e) { e.preventDefault(); var p = toSvg(e.clientX, e.clientY); zoomAt(e.deltaY < 0 ? 0.85 : 1.18, p[0], p[1]); }, { passive: false });
-  var drag = null, moved = 0;
-  stage.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, v: view.slice() }; moved = 0; });
+  var drag = null, moved = 0, pinch = null;
+  var pointers = {};
+  function pointerList() { return Object.keys(pointers).map(function (k) { return pointers[k]; }); }
+  function distance(p, q) { return Math.sqrt((p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y)); }
+  stage.addEventListener('pointerdown', function (e) {
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var all = pointerList();
+    if (all.length === 2) { pinch = { dist: distance(all[0], all[1]) }; drag = null; moved = 99; return; } // two fingers: zoom, never a tap
+    drag = { x: e.clientX, y: e.clientY, v: view.slice() }; moved = 0;
+  });
   window.addEventListener('pointermove', function (e) {
+    if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var all = pointerList();
+    if (pinch && all.length === 2) {
+      var d = distance(all[0], all[1]);
+      if (pinch.dist > 0 && d > 0) {
+        var mid = toSvg((all[0].x + all[1].x) / 2, (all[0].y + all[1].y) / 2);
+        zoomAt(pinch.dist / d, mid[0], mid[1]); // fingers apart (d grows) -> zoom in
+      }
+      pinch.dist = d;
+      return;
+    }
     if (!drag) return;
     var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     moved = Math.max(moved, Math.abs(dx) + Math.abs(dy));
@@ -278,7 +297,19 @@ const SCRIPT = `${TRACE_JS}
     view = [drag.v[0] - dx * s, drag.v[1] - dy * s, drag.v[2], drag.v[3]];
     apply();
   });
-  window.addEventListener('pointerup', function () { drag = null; stage.classList.remove('drag'); });
+  function endPointer(e) {
+    delete pointers[e.pointerId];
+    var rest = pointerList();
+    pinch = null;
+    // One finger left after a pinch: carry on dragging from where it is, without a jump.
+    drag = rest.length === 1 ? { x: rest[0].x, y: rest[0].y, v: view.slice() } : null;
+    stage.classList.remove('drag');
+  }
+  window.addEventListener('pointerup', endPointer);
+  window.addEventListener('pointercancel', endPointer);
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+    document.getElementById('hint').textContent = 'Drag to pan · pinch or use + / − to zoom · tap a component';
+  }
   function center(id) {
     var g = svg.querySelector('g.node[data-id="' + id + '"]');
     if (!g) return;

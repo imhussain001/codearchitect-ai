@@ -294,7 +294,7 @@ export default function Page() {
       />
 
       <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section data-tour="canvas" className="relative h-[55vh] min-h-0 lg:h-auto lg:basis-[65%]" aria-label="Architecture graph">
+        <section data-tour="canvas" className="relative h-[45vh] min-h-0 sm:h-[55vh] lg:h-auto lg:basis-[65%]" aria-label="Architecture graph">
           <ReactFlowProvider>
             <ArchitectureCanvas
               graphKey={graph.id}

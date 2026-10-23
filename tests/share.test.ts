@@ -120,3 +120,23 @@ describe("data-flow trace in the page", () => {
     expect(html).toContain("Written by");
   });
 });
+
+describe("small screens", () => {
+  const html = renderShareHtml(authMicroservice);
+
+  it("stacks the map above the details on a phone", () => {
+    expect(html).toContain("@media (max-width:820px)");
+    expect(html).toContain("grid-template-rows:minmax(260px,45vh)");
+  });
+
+  it("supports touch: pinch to zoom, cancelled gestures, and a hint that says so", () => {
+    expect(html).toContain("pointercancel");
+    expect(html).toContain("(pointer: coarse)");
+    expect(html).toContain("pinch or use + / ");
+    expect(html).toContain("touch-action:none");
+  });
+
+  it("keeps the viewport meta tag that makes a phone render at its own width", () => {
+    expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">');
+  });
+});
