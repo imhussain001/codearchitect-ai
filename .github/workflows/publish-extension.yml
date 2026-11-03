@@ -63,7 +63,7 @@ jobs:
           npx --yes ovsx publish codearchitect.vsix -p "$OVSX_PAT"
 
       - name: Keep the package with the run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: codearchitect-vsix
           path: extensions/vscode/codearchitect.vsix
